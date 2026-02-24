@@ -700,10 +700,315 @@ async def pipeline_dashboard(
 
 
 @app.get("/pipeline/candidate/{candidate_name}")
-async def pipeline_candidate(candidate_name: str):
+async def pipeline_candidate(
+    candidate_name: str,
+    x_company_id: Optional[str] = Header(default=None),
+):
     """Phase 4 — Cross-agent JSON view for a specific candidate."""
     try:
-        data = get_pipeline_summary(candidate_name)
+        data = get_pipeline_summary(candidate_name, company_id=x_company_id or None)
         return JSONResponse(content=data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Analytics dashboard ───────────────────────────────────────────────────────
+
+@app.get("/analytics/data")
+async def analytics_data(
+    company: Optional[str] = None,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Phase 4 — Raw analytics JSON for a company."""
+    try:
+        from shared.analytics import get_full_analytics
+        tenant = company or x_company_id or None
+        data = get_full_analytics(tenant)
+        return JSONResponse(content=data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/analytics", response_class=HTMLResponse)
+async def analytics_dashboard(
+    company: Optional[str] = None,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Phase 4 — Visual analytics dashboard with Chart.js charts."""
+    tenant = company or x_company_id or None
+    try:
+        from shared.analytics import get_full_analytics
+        from shared.db_memory import list_companies
+        data    = get_full_analytics(tenant)
+        tenants = list_companies()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    funnel   = data.get("funnel", {})
+    scores   = data.get("score_distribution", {})
+    tiers    = data.get("tier_breakdown", {})
+    daily    = data.get("daily_activity", {})
+    skills   = data.get("top_skills", {})
+    avgs     = data.get("avg_scores", {})
+    insights = data.get("predictive_insights", [])
+
+    # Build tenant selector options
+    tenant_opts = "".join(
+        f'<option value="{c["company_id"]}" {"selected" if c["company_id"]==tenant else ""}>'
+        f'{c["company_name"]}</option>'
+        for c in tenants
+    )
+
+    # Build insight cards HTML
+    insight_cards = ""
+    for ins in insights:
+        col = ins.get("color", "#6c63ff")
+        insight_cards += f"""
+        <div class="insight-card" style="border-left:3px solid {col};">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:1.6rem;">{ins.get("icon","📊")}</span>
+            <div>
+              <div style="font-size:.82rem;font-weight:700;color:#e2e8f0;">{ins.get("title","")}</div>
+              <div style="font-size:1.8rem;font-weight:900;color:{col};">{ins.get("value","—")}</div>
+            </div>
+          </div>
+          <div style="font-size:.74rem;color:#94a3b8;line-height:1.5;">{ins.get("detail","")}</div>
+          <div style="font-size:.74rem;color:#e2e8f0;margin-top:6px;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:6px;">
+            💡 {ins.get("recommendation","")}
+          </div>
+        </div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VelocityHire · Analytics</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{{--bg:#0f1117;--surface:#1a1d27;--surface2:#242736;--accent:#6c63ff;--accent2:#f5a623;
+        --green:#22c55e;--red:#ef4444;--text:#e2e8f0;--muted:#94a3b8;--border:#2d3147;--radius:12px;}}
+  *{{box-sizing:border-box;margin:0;padding:0;}}
+  body{{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;}}
+  header{{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 32px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}}
+  .logo{{font-size:1.4rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;}}
+  .badge{{background:var(--surface2);border:1px solid var(--border);color:var(--muted);font-size:.75rem;padding:2px 10px;border-radius:20px;}}
+  nav a{{color:var(--muted);font-size:.8rem;text-decoration:none;padding:4px 12px;border-radius:20px;border:1px solid transparent;}}
+  nav a:hover,nav a.active{{border-color:var(--accent);color:var(--accent);}}
+  .container{{max-width:1300px;margin:0 auto;padding:28px 20px;}}
+  .section-title{{font-size:.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:14px;}}
+  .grid-2{{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;}}
+  .grid-3{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;}}
+  .grid-4{{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px;}}
+  @media(max-width:900px){{.grid-2,.grid-3,.grid-4{{grid-template-columns:1fr;}}}}
+  .card{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;}}
+  .metric-card{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;text-align:center;}}
+  .metric-card .num{{font-size:2.2rem;font-weight:900;}}
+  .metric-card .lbl{{font-size:.72rem;color:var(--muted);margin-top:4px;}}
+  .metric-card .sub{{font-size:.7rem;color:var(--muted);margin-top:2px;}}
+  .funnel-bar{{display:flex;align-items:center;gap:10px;margin-bottom:10px;}}
+  .funnel-bar .label{{font-size:.78rem;color:var(--muted);width:160px;flex-shrink:0;}}
+  .funnel-bar .bar-wrap{{flex:1;background:var(--surface2);border-radius:4px;height:24px;overflow:hidden;}}
+  .funnel-bar .bar-fill{{height:100%;border-radius:4px;display:flex;align-items:center;justify-content:flex-end;padding-right:8px;font-size:.72rem;font-weight:700;color:#fff;transition:width .6s ease;}}
+  .funnel-bar .count{{font-size:.78rem;font-weight:700;width:50px;text-align:right;}}
+  .insight-card{{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}}
+  .insights-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:20px;}}
+  select{{background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 10px;font-size:.8rem;cursor:pointer;}}
+  .chart-wrap{{position:relative;height:260px;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⚡ VelocityHire</div>
+  <span class="badge">Analytics Dashboard</span>
+  <nav style="display:flex;gap:4px;margin-left:12px;">
+    <a href="/pipeline">Pipeline</a>
+    <a href="/analytics" class="active">Analytics</a>
+  </nav>
+  <form method="get" action="/analytics" style="display:flex;gap:8px;align-items:center;margin-left:auto;">
+    <label style="font-size:.75rem;color:var(--muted);">Company:</label>
+    <select name="company" onchange="this.form.submit()">
+      <option value="">All companies</option>
+      {tenant_opts}
+    </select>
+  </form>
+</header>
+
+<div class="container">
+
+  <!-- KPI strip -->
+  <div style="margin-bottom:20px;">
+    <div class="section-title">Key Metrics</div>
+    <div class="grid-4">
+      <div class="metric-card">
+        <div class="num" style="color:var(--accent);">{funnel.get("profiles_analyzed",0)}</div>
+        <div class="lbl">Profiles Analyzed</div>
+        <div class="sub">avg score: {avgs.get("avg_adaptability","—")}/100</div>
+      </div>
+      <div class="metric-card">
+        <div class="num" style="color:var(--green);">{funnel.get("jobs_matched",0)}</div>
+        <div class="lbl">Jobs Matched</div>
+        <div class="sub">match rate: {funnel.get("match_rate_pct",0)}%</div>
+      </div>
+      <div class="metric-card">
+        <div class="num" style="color:var(--accent2);">{funnel.get("campaigns_sent",0)}</div>
+        <div class="lbl">Campaigns Sent</div>
+        <div class="sub">priority: {funnel.get("priority_candidates",0)}</div>
+      </div>
+      <div class="metric-card">
+        <div class="num" style="color:#22c55e;">{funnel.get("interview_recommended",0)}</div>
+        <div class="lbl">Interview Recommended</div>
+        <div class="sub">rate: {funnel.get("interview_rate_pct",0)}%</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pipeline funnel + Daily activity -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">Pipeline Funnel</div>
+      {"".join(f'''
+      <div class="funnel-bar">
+        <div class="label">{label}</div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:{pct}%;background:{color};">{val if val else ""}</div></div>
+        <div class="count" style="color:{color};">{val}</div>
+      </div>''' for label, val, pct, color in [
+          ("Profiles Analyzed",   funnel.get("profiles_analyzed",0),
+           100, "#6c63ff"),
+          ("Jobs Matched",        funnel.get("jobs_matched",0),
+           round(funnel.get("match_rate_pct",0)), "#22c55e"),
+          ("Campaigns Sent",      funnel.get("campaigns_sent",0),
+           round(funnel.get("outreach_rate_pct",0)), "#f5a623"),
+          ("Priority Fast-Track", funnel.get("priority_candidates",0),
+           round(funnel.get("priority_rate_pct",0)), "#ef4444"),
+      ])}
+    </div>
+
+    <div class="card">
+      <div class="section-title">Daily Activity (last {daily.get("days",14)} days)</div>
+      <div class="chart-wrap">
+        <canvas id="dailyChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Score distribution + Tier breakdown -->
+  <div class="grid-2">
+    <div class="card">
+      <div class="section-title">Adaptability Score Distribution (avg: {scores.get("average","—")})</div>
+      <div class="chart-wrap">
+        <canvas id="scoreChart"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <div class="section-title">Outreach Tier Breakdown</div>
+      <div class="chart-wrap">
+        <canvas id="tierChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top skills -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="section-title">Top Matched Skills ({skills.get("total_unique",0)} unique skills)</div>
+    <div class="chart-wrap" style="height:200px;">
+      <canvas id="skillsChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Predictive insights -->
+  <div style="margin-bottom:20px;">
+    <div class="section-title">Predictive Insights</div>
+    <div class="insights-grid">
+      {insight_cards}
+    </div>
+  </div>
+
+</div>
+
+<script>
+const ACCENT = '#6c63ff', GREEN = '#22c55e', AMBER = '#f5a623', RED = '#ef4444', MUTED = '#94a3b8';
+Chart.defaults.color = '#94a3b8';
+Chart.defaults.borderColor = '#2d3147';
+
+// Daily activity
+new Chart(document.getElementById('dailyChart'), {{
+  type: 'line',
+  data: {{
+    labels: {json.dumps(daily.get("labels", []))},
+    datasets: [{{
+      label: 'Candidates',
+      data: {json.dumps(daily.get("values", []))},
+      borderColor: ACCENT,
+      backgroundColor: ACCENT + '22',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 3,
+    }}]
+  }},
+  options: {{responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:false}}}},
+    scales:{{x:{{grid:{{color:'#2d3147'}}}},y:{{beginAtZero:true,grid:{{color:'#2d3147'}},ticks:{{stepSize:1}}}}}}
+  }}
+}});
+
+// Score distribution
+new Chart(document.getElementById('scoreChart'), {{
+  type: 'bar',
+  data: {{
+    labels: {json.dumps(scores.get("labels", []))},
+    datasets: [{{
+      label: 'Candidates',
+      data: {json.dumps(scores.get("values", []))},
+      backgroundColor: {json.dumps(scores.get("labels", []))}.map(l => {{
+        const v = parseInt(l.split('-')[0]);
+        return v >= 70 ? GREEN + 'cc' : v >= 55 ? AMBER + 'cc' : RED + 'cc';
+      }}),
+      borderRadius: 4,
+    }}]
+  }},
+  options: {{responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:false}}}},
+    scales:{{x:{{grid:{{color:'#2d3147'}}}},y:{{beginAtZero:true,grid:{{color:'#2d3147'}},ticks:{{stepSize:1}}}}}}
+  }}
+}});
+
+// Tier breakdown (doughnut)
+new Chart(document.getElementById('tierChart'), {{
+  type: 'doughnut',
+  data: {{
+    labels: {json.dumps(tiers.get("labels", []))},
+    datasets: [{{
+      data: {json.dumps(tiers.get("values", []))},
+      backgroundColor: [ACCENT, GREEN, AMBER, MUTED, RED],
+      borderWidth: 2,
+      borderColor: '#1a1d27',
+    }}]
+  }},
+  options: {{responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{position:'right',labels:{{padding:16,font:{{size:12}}}}}}}}
+  }}
+}});
+
+// Top skills
+new Chart(document.getElementById('skillsChart'), {{
+  type: 'bar',
+  data: {{
+    labels: {json.dumps(skills.get("labels", []))},
+    datasets: [{{
+      label: 'Matches',
+      data: {json.dumps(skills.get("values", []))},
+      backgroundColor: ACCENT + 'bb',
+      borderRadius: 4,
+    }}]
+  }},
+  options: {{
+    indexAxis: 'y',
+    responsive:true, maintainAspectRatio:false,
+    plugins:{{legend:{{display:false}}}},
+    scales:{{x:{{beginAtZero:true,grid:{{color:'#2d3147'}}}},y:{{grid:{{color:'#2d3147'}}}}}}
+  }}
+}});
+</script>
+</body>
+</html>"""

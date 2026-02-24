@@ -45,6 +45,7 @@ try:
     from shared.db_memory import (
         save_candidate_score, get_recent_candidates, get_db_stats,
         register_company, list_companies, get_company_stats, get_company,
+        save_outcome, get_outcomes,
     )
     DB_ENABLED = True
 except ImportError:
@@ -56,6 +57,8 @@ except ImportError:
     def list_companies(*a, **kw): return []                            # noqa: E704
     def get_company_stats(*a, **kw): return {}                         # noqa: E704
     def get_company(*a, **kw): return None                             # noqa: E704
+    def save_outcome(*a, **kw): return None                            # noqa: E704
+    def get_outcomes(*a, **kw): return []                              # noqa: E704
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(title="Agent 1 — Profile Analyzer", version="1.0.0")
@@ -870,5 +873,55 @@ async def company_stats(company_id: str):
     try:
         stats = get_company_stats(company_id)
         return JSONResponse(content=stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Hiring outcome tracking ───────────────────────────────────────────────────
+
+class OutcomeRequest(BaseModel):
+    candidate_name: str
+    outcome: str                         # hired / rejected / no_response / offer_declined
+    job_title: Optional[str] = ""
+    adaptability_score: Optional[int] = None
+    match_score: Optional[int] = None
+    time_to_hire_days: Optional[int] = None
+    notes: Optional[str] = ""
+
+
+@app.post("/outcomes")
+async def record_outcome(
+    req: OutcomeRequest,
+    x_company_id: Optional[str] = Header(default="demo"),
+):
+    """Record a final hiring outcome for a candidate (success tracking)."""
+    valid = {"hired", "rejected", "no_response", "offer_declined"}
+    if req.outcome not in valid:
+        raise HTTPException(status_code=400, detail=f"outcome must be one of {valid}")
+    try:
+        row_id = save_outcome(
+            candidate_name     = req.candidate_name,
+            outcome            = req.outcome,
+            job_title          = req.job_title or "",
+            adaptability_score = req.adaptability_score,
+            match_score        = req.match_score,
+            time_to_hire_days  = req.time_to_hire_days,
+            notes              = req.notes or "",
+            company_id         = (x_company_id or "demo").strip(),
+        )
+        return JSONResponse(content={"status": "recorded", "outcome": req.outcome, "row_id": row_id})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/outcomes")
+async def list_outcomes(
+    limit: int = 50,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Return recorded hiring outcomes, scoped to tenant if header provided."""
+    try:
+        records = get_outcomes(limit, company_id=x_company_id or None)
+        return JSONResponse(content={"count": len(records), "records": records})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

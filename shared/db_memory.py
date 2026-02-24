@@ -107,6 +107,20 @@ def _init_tables():
         Column("score_breakdown",       Text),
     )
 
+    # ── Hiring outcomes (success tracking) ───────────────────────────────────
+    Table("outcomes", _meta,
+        Column("id",             Integer, primary_key=True, autoincrement=True),
+        Column("created_at",     String(50)),
+        Column("company_id",     String(100), default=DEFAULT_COMPANY),
+        Column("candidate_name", String(255)),
+        Column("job_title",      String(255)),
+        Column("outcome",        String(50)),   # hired / rejected / no_response / offer_declined
+        Column("adaptability_score", Integer, nullable=True),
+        Column("match_score",    Integer, nullable=True),
+        Column("time_to_hire_days", Integer, nullable=True),
+        Column("notes",          Text, nullable=True),
+    )
+
     # ── Agent 3 results ───────────────────────────────────────────────────────
     Table("outreach_campaigns", _meta,
         Column("id",                Integer, primary_key=True, autoincrement=True),
@@ -152,6 +166,13 @@ def _migrate_tables():
                 logger.info("Migrated table %s: added company_id column", tbl)
             except Exception:
                 pass  # Column already exists — safe to ignore
+        # outcomes table migration (add company_id if missing)
+        try:
+            conn.execute(text(
+                f"ALTER TABLE outcomes ADD COLUMN company_id TEXT DEFAULT '{DEFAULT_COMPANY}'"
+            ))
+        except Exception:
+            pass
 
 
 def _ensure_demo_company():
@@ -505,6 +526,68 @@ def get_pipeline_summary(
         return {"error": str(exc)}
 
 
+def save_outcome(
+    candidate_name: str,
+    outcome: str,
+    job_title: str = "",
+    adaptability_score: Optional[int] = None,
+    match_score: Optional[int] = None,
+    time_to_hire_days: Optional[int] = None,
+    notes: str = "",
+    company_id: str = DEFAULT_COMPANY,
+) -> Optional[int]:
+    """Record a hiring outcome for a candidate. Returns inserted row id."""
+    if not SQLALCHEMY_AVAILABLE:
+        return None
+    try:
+        engine = _get_engine()
+        if engine is None:
+            return None
+        tbl = _meta.tables["outcomes"]
+        with engine.begin() as conn:
+            res = conn.execute(tbl.insert().values(
+                created_at         = datetime.utcnow().isoformat(),
+                company_id         = company_id or DEFAULT_COMPANY,
+                candidate_name     = candidate_name,
+                job_title          = job_title,
+                outcome            = outcome,
+                adaptability_score = adaptability_score,
+                match_score        = match_score,
+                time_to_hire_days  = time_to_hire_days,
+                notes              = notes,
+            ))
+            row_id = res.lastrowid
+        logger.info("DB [outcomes] company=%s candidate=%s outcome=%s",
+                    company_id, candidate_name, outcome)
+        return row_id
+    except Exception as exc:
+        logger.error("save_outcome failed: %s", exc)
+        return None
+
+
+def get_outcomes(
+    limit: int = 50,
+    company_id: Optional[str] = None,
+) -> List[Dict]:
+    """Return hiring outcomes, optionally scoped to a company."""
+    if not SQLALCHEMY_AVAILABLE:
+        return []
+    try:
+        engine = _get_engine()
+        if engine is None:
+            return []
+        tbl = _meta.tables["outcomes"]
+        q   = tbl.select().order_by(tbl.c.id.desc()).limit(limit)
+        if company_id:
+            q = q.where(tbl.c.company_id == company_id)
+        with engine.connect() as conn:
+            rows = conn.execute(q).fetchall()
+        return [_row_to_dict(r, tbl) for r in rows]
+    except Exception as exc:
+        logger.error("get_outcomes failed: %s", exc)
+        return []
+
+
 def get_company_stats(company_id: str) -> Dict:
     """Return pipeline statistics scoped to a single tenant."""
     if not SQLALCHEMY_AVAILABLE:
@@ -547,6 +630,7 @@ def get_db_stats() -> Dict:
             n_c  = conn.execute(text("SELECT COUNT(*) FROM candidates")).scalar()
             n_jm = conn.execute(text("SELECT COUNT(*) FROM job_matches")).scalar()
             n_oc = conn.execute(text("SELECT COUNT(*) FROM outreach_campaigns")).scalar()
+            n_out= conn.execute(text("SELECT COUNT(*) FROM outcomes")).scalar()
         return {
             "db_path":             DB_PATH,
             "db_persistence":      True,
@@ -555,6 +639,7 @@ def get_db_stats() -> Dict:
             "candidates":          n_c,
             "job_matches":         n_jm,
             "outreach_campaigns":  n_oc,
+            "outcomes":            n_out,
             "total_pipeline_runs": min(n_c, n_jm, n_oc),
         }
     except Exception as exc:
