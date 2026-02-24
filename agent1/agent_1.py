@@ -157,38 +157,38 @@ def _detect_node(prompt: str) -> str:
 
 def call_llm_openai(prompt: str) -> str:
     """
-    Call Deploy AI's OpenAI-compatible proxy.
-    Falls back to mock mode when MOCK_MODE=true or no API key is available.
+    Call the Deploy AI chat API (OAuth2 client-credentials flow, or direct sk_ key).
+    Falls back to rule-based mock when:
+      - MOCK_MODE=true (demo / presentation mode)
+      - No credentials are configured
+      - The API call fails for any reason
+
+    NOTE: The /openai/chat/completions compat endpoint is NOT supported on
+    this Deploy AI instance (returns 403).  The correct flow is:
+      POST /chats → POST /messages (see _call_llm_legacy).
+    Real-LLM mode requires CLIENT_ID + CLIENT_SECRET env vars (OAuth2) OR
+    a valid sk_ Bearer token accepted by the /chats endpoint.
     """
-    if os.getenv("MOCK_MODE", "false").lower() == "true":
+    if os.getenv("MOCK_MODE", "true").lower() == "true":
+        import logging as _log
+        _log.getLogger("velocityhire.agent1").debug("MOCK_MODE=true — using rule-based scoring")
         return _mock_llm(prompt)
 
     api_key = _get_api_key()
     if not api_key:
-        return _mock_llm(prompt)   # no key → use mock silently
+        import logging as _log
+        _log.getLogger("velocityhire.agent1").info("No API key — falling back to mock scorer")
+        return _mock_llm(prompt)
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "X-Org": os.getenv("ORG_ID", ""),
-    }
-    payload = {
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": "You are a talent intelligence engine that analyses candidate profiles and returns structured JSON."},
-            {"role": "user",   "content": prompt},
-        ],
-        "temperature": 0.2,
-        "max_tokens": 1500,
-    }
     try:
-        resp = requests.post(OPENAI_COMPAT_URL, headers=headers, json=payload, timeout=60)
-        if resp.status_code == 200:
-            return resp.json()["choices"][0]["message"]["content"]
-    except Exception:
-        pass
+        import logging as _log
+        _log.getLogger("velocityhire.agent1").info("Calling Deploy AI chat API (real LLM mode)")
+        return _call_llm_legacy(api_key, prompt)
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger("velocityhire.agent1").warning(
+            "Deploy AI call failed (%s) — falling back to mock scorer", exc)
 
-    # Any failure → mock fallback
     return _mock_llm(prompt)
 
 

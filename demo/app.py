@@ -35,7 +35,11 @@ LOG_DIR   = ROOT / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 load_dotenv(ROOT / ".env")
-os.environ.setdefault("MOCK_MODE", "true")
+# Demo always runs in MOCK_MODE — the Deploy AI OpenAI-compat endpoint
+# returns 403 and direct sk_ auth returns 401 without CLIENT_ID/SECRET
+# OAuth2 provisioning.  Rule-based scoring is intentional: deterministic,
+# instant, and zero external dependencies during the live presentation.
+os.environ["MOCK_MODE"] = "true"
 
 sys.path.insert(0, WORKSPACE)
 sys.path.insert(0, str(ROOT / "agent1"))
