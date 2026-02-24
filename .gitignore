@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+*.log
+logs/
+downloads/
+velocityhire.db
+=2.0.0
+*.db-shm
+*.db-wal
+.DS_Store
