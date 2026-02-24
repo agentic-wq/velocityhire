@@ -1,310 +1,294 @@
-# VelocityHire - AI-Powered Recruitment Platform
+# ⚡ VelocityHire — AI-Powered Recruitment Intelligence
 
-## Overview
-VelocityHire is a production-ready, multi-agent AI recruitment platform that automates the entire hiring pipeline from candidate sourcing to final evaluation and decision making.
+> **Complete.dev Hackathon 2026** · Built with LangGraph · Multi-agent · Multi-tenant
 
-## Architecture
+VelocityHire identifies candidates with the highest **learning velocity** — not just years of experience.
+Three LangGraph agents collaborate to score adaptability, match candidates to roles, and generate
+personalised outreach campaigns automatically.
 
-### Multi-Agent System
-- **Agent 1 (Sourcing)**: Automated candidate discovery across LinkedIn, GitHub, and Stack Overflow
-- **Agent 2 (Assessment)**: Technical evaluation through coding challenges, system design, and interviews  
-- **Agent 3 (Evaluation)**: Comprehensive final assessment and hiring recommendations
-
-### Production Features
-- **Circuit Breakers**: Fault tolerance for external API failures
-- **Redis Caching**: 65% performance improvement with intelligent caching
-- **Prometheus Metrics**: Real-time monitoring and observability
-- **Health Checks**: Comprehensive system health monitoring
-- **Structured Logging**: JSON-formatted logs for production debugging
-- **Connection Pooling**: Optimized database and API connections
-- **Graceful Degradation**: Continues operation during partial failures
-
-## Quick Start
-
-### Prerequisites
-- Python 3.8+
-- Redis server
-- Docker (optional)
-
-### Installation
-```bash
-# Clone repository
-git clone https://github.com/agentic-wq/velocityhire.git
-cd velocityhire
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Start Redis (if not running)
-redis-server
-
-# Run agents
-python agent1_sourcing.py     # Port 8000
-python agent2_assessment.py   # Port 8001  
-python agent3_evaluation.py   # Port 8002
-```
-
-### API Usage
-
-#### 1. Source Candidates
-```bash
-curl -X POST "http://localhost:8000/source-candidates" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "title": "Senior Python Developer",
-    "skills": ["python", "fastapi", "redis"],
-    "experience_years": 5,
-    "location": "Remote",
-    "company": "TechCorp"
-  }'
-```
-
-#### 2. Create Assessment
-```bash
-curl -X POST "http://localhost:8001/create-assessment" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "candidate_id": "candidate_123",
-    "skills": ["python", "algorithms"],
-    "difficulty": "intermediate",
-    "assessment_type": "coding_challenge"
-  }'
-```
-
-#### 3. Final Evaluation
-```bash
-curl -X POST "http://localhost:8002/evaluate-candidate" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "candidate_profile": {
-      "candidate_id": "candidate_123",
-      "name": "John Doe",
-      "skills": ["python", "fastapi"],
-      "experience_years": 5,
-      "assessment_results": [...]
-    },
-    "job_requirements": {
-      "title": "Senior Developer",
-      "skills": ["python"],
-      "experience_years": 3
-    }
-  }'
-```
-
-## Monitoring
-
-### Health Checks
-- Agent 1: `GET http://localhost:8000/health`
-- Agent 2: `GET http://localhost:8001/health`  
-- Agent 3: `GET http://localhost:8002/health`
-
-### Metrics
-- Agent 1: `GET http://localhost:8000/metrics`
-- Agent 2: `GET http://localhost:8001/metrics`
-- Agent 3: `GET http://localhost:8002/metrics`
-
-### Prometheus Metrics
-- Prometheus servers run on ports 8001, 8002, 8003
-- Metrics include request counts, duration, error rates, and business metrics
-
-## Configuration
-
-### Redis Configuration
-```python
-# Default Redis URL
-REDIS_URL = "redis://localhost:6379"
-
-# Production Redis with authentication
-REDIS_URL = "redis://username:password@redis-host:6379/0"
-```
-
-### Environment Variables
-```bash
-export REDIS_URL="redis://localhost:6379"
-export LOG_LEVEL="INFO"
-export PROMETHEUS_PORT="8001"
-```
-
-## Production Deployment
-
-### Docker Deployment
-```bash
-# Build images
-docker build -t velocityhire-sourcing -f Dockerfile.sourcing .
-docker build -t velocityhire-assessment -f Dockerfile.assessment .
-docker build -t velocityhire-evaluation -f Dockerfile.evaluation .
-
-# Run with docker-compose
-docker-compose up -d
-```
-
-### Kubernetes Deployment
-```bash
-# Apply Kubernetes manifests
-kubectl apply -f k8s/
-```
-
-### Load Balancer Configuration
-- Use nginx or cloud load balancer
-- Health check endpoints: `/health`
-- Sticky sessions not required (stateless agents)
-
-## Performance
-
-### Benchmarks
-- **Sourcing**: 100+ candidates/minute
-- **Assessment**: 50+ assessments/hour
-- **Evaluation**: 200+ evaluations/hour
-- **Cache Hit Rate**: 65% average
-- **Response Time**: <500ms P95
-
-### Scaling
-- **Horizontal**: Multiple agent instances behind load balancer
-- **Vertical**: Increase CPU/memory per instance
-- **Database**: Redis Cluster for high availability
-- **Caching**: Multi-level caching strategy
-
-## Security
-
-### API Security
-- Rate limiting on all endpoints
-- Input validation with Pydantic
-- SQL injection prevention
-- XSS protection
-
-### Data Security
-- Candidate data encryption at rest
-- Secure Redis connections (TLS)
-- Audit logging for compliance
-- GDPR compliance features
-
-## Development
-
-### Running Tests
-```bash
-# Unit tests
-pytest tests/unit/
-
-# Integration tests  
-pytest tests/integration/
-
-# Load tests
-pytest tests/load/
-```
-
-### Code Quality
-```bash
-# Linting
-flake8 .
-black .
-isort .
-
-# Type checking
-mypy .
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### Redis Connection Failed
-```bash
-# Check Redis status
-redis-cli ping
-
-# Restart Redis
-sudo systemctl restart redis
-```
-
-#### High Memory Usage
-```bash
-# Check Redis memory
-redis-cli info memory
-
-# Clear cache if needed
-redis-cli flushdb
-```
-
-#### Circuit Breaker Open
-- Check external API status
-- Review error logs
-- Wait for automatic recovery (60 seconds default)
-
-### Logs
-```bash
-# View structured logs
-tail -f logs/velocityhire.log | jq
-
-# Filter by agent
-grep "agent=sourcing" logs/velocityhire.log
-```
-
-## API Reference
-
-### Agent 1 - Sourcing
-- `POST /source-candidates` - Source candidates for job requirements
-- `GET /health` - Health check
-- `GET /metrics` - Prometheus metrics
-
-### Agent 2 - Assessment  
-- `POST /create-assessment` - Create technical assessment
-- `POST /submit-assessment` - Submit assessment results
-- `GET /health` - Health check
-- `GET /metrics` - Prometheus metrics
-
-### Agent 3 - Evaluation
-- `POST /evaluate-candidate` - Final candidate evaluation
-- `POST /evaluation-summary` - Multi-candidate summary
-- `GET /health` - Health check  
-- `GET /metrics` - Prometheus metrics
-
-## Contributing
-
-### Development Setup
-```bash
-# Fork repository
-git clone https://github.com/yourusername/velocityhire.git
-
-# Create feature branch
-git checkout -b feature/new-feature
-
-# Install dev dependencies
-pip install -r requirements-dev.txt
-
-# Run tests
-pytest
-
-# Submit pull request
-```
-
-### Code Standards
-- Follow PEP 8 style guide
-- Add type hints for all functions
-- Write comprehensive tests
-- Update documentation
-
-## License
-MIT License - see LICENSE file for details
-
-## Support
-- GitHub Issues: https://github.com/agentic-wq/velocityhire/issues
-- Documentation: https://velocityhire.readthedocs.io
-- Email: support@velocityhire.com
-
-## Roadmap
-
-### Phase 4 - Advanced Features
-- [ ] Machine learning candidate matching
-- [ ] Video interview analysis
-- [ ] Advanced analytics dashboard
-- [ ] Multi-language support
-
-### Phase 5 - Enterprise Features  
-- [ ] SSO integration
-- [ ] Advanced reporting
-- [ ] Compliance automation
-- [ ] Custom workflow builder
+**Live Demo →** https://q1inyxqs.run.complete.dev
 
 ---
 
-**VelocityHire** - Accelerating recruitment through intelligent automation
+## The Problem
+
+Traditional recruitment filters by credentials and years of experience.
+The best engineers in an AI-first world are defined by **how fast they learn and ship** — not their résumé.
+
+**VelocityHire measures what matters:**
+- 🏆 Hackathon wins and frequency (40% weight)
+- ⚡ Recent technology adoption (25%)
+- 📚 Fresh certifications (20%)
+- 🕐 Recency of all signals (15%)
+
+---
+
+## Architecture — 3 LangGraph Agents
+
+```
+Candidate Profile
+      │
+      ▼
+┌─────────────────────┐
+│  Agent 1            │  LangGraph · 7 nodes
+│  Profile Analyzer   │  Scores learning velocity (0-100)
+│  /analyze           │  Hackathons · Skills · Certs · Recency
+└────────┬────────────┘
+         │ adaptability_score + tier
+         ▼
+┌─────────────────────┐
+│  Agent 2            │  LangGraph · 5 nodes
+│  Job Matcher        │  Adaptability (60%) + Role Fit (25%) + Culture (15%)
+│  /match             │  Outputs total_match_score + recommendation
+└────────┬────────────┘
+         │ match_score + matched_skills
+         ▼
+┌─────────────────────┐
+│  Agent 3            │  LangGraph · 6 nodes
+│  Outreach Coord.    │  PRIORITY / STANDARD / NURTURE / ARCHIVE tiers
+│  /generate          │  LinkedIn · Email · Follow-up · ATS Note
+└─────────────────────┘
+         │
+         ▼
+┌─────────────────────┐
+│  Shared SQLite DB   │  Multi-tenant · 5 tables · analytics
+│  shared/db_memory   │  Scoped by X-Company-ID header
+└─────────────────────┘
+```
+
+---
+
+## Scoring Algorithm
+
+### Agent 1 — Adaptability Score (0-100)
+
+| Dimension | Weight | Signals |
+|-----------|--------|---------|
+| Hackathons | 40 pts | Wins in last 3 months = 20pts, 6mo = 15pts, 12mo = 10pts |
+| Skills | 25 pts | Recent tech adoption: LangGraph, Rust, Svelte, GenAI, etc. |
+| Certifications | 20 pts | Recency × relevance (cloud/AI certs score highest) |
+| Recency | 15 pts | GitHub commits, blog posts, talks in last 30/90 days |
+
+**Threshold:** 70+ → recommend for interview
+
+### Agent 2 — Job Match Score (0-100)
+
+| Dimension | Weight | Method |
+|-----------|--------|--------|
+| Adaptability | 60% | Agent 1 score × 0.6 |
+| Role Fit | 25% | Skills coverage + experience level + domain match |
+| Culture Fit | 15% | Startup experience + collaboration signals + shipping velocity |
+
+### Agent 3 — Outreach Tier
+
+| Score | Tier | Action |
+|-------|------|--------|
+| 85+ | 🏆 PRIORITY | Same-day fast-track, exec referral |
+| 70–84 | ⭐ STANDARD | Standard interview pipeline |
+| 55–69 | ✅ NURTURE | Warm hold, future-role framing |
+| <55 | 📋 ARCHIVE | Passive acknowledgement |
+
+---
+
+## Project Structure
+
+```
+velocityhire/
+├── agent1/
+│   ├── agent_1.py          # LangGraph graph (7 nodes)
+│   └── app.py              # FastAPI: /analyze, /history, /ats/*, /companies, /outcomes
+├── agent2/
+│   ├── agent_2.py          # LangGraph graph (5 nodes)
+│   └── app.py              # FastAPI: /match, /history
+├── agent3/
+│   ├── agent_3.py          # LangGraph graph (6 nodes)
+│   └── app.py              # FastAPI: /generate, /history, /pipeline, /analytics
+├── demo/
+│   └── app.py              # Unified demo orchestrator — start here!
+├── shared/
+│   ├── db_memory.py        # SQLite ORM · 5 tables · multi-tenant CRUD
+│   ├── analytics.py        # 7 analytics functions + get_full_analytics()
+│   └── ats_integrations.py # Greenhouse · Lever · BambooHR normalisers
+├── logs/                   # JSON-structured logs (auto-created)
+└── velocityhire.db         # SQLite database (auto-created)
+```
+
+---
+
+## Quick Start
+
+### 1. Clone & install
+
+```bash
+git clone https://github.com/agentic-wq/velocityhire.git
+cd velocityhire
+
+# Install dependencies (demo app — covers all agents)
+pip install -r demo/requirements.txt
+```
+
+### 2. Run the unified demo
+
+```bash
+MOCK_MODE=true python -m uvicorn demo.app:app --host 0.0.0.0 --port 8000
+```
+
+Open **http://localhost:8000** and click **▶ Run Full Pipeline Demo**.
+
+That's it. The demo:
+1. Runs 5 pre-seeded candidates through all 3 agents
+2. Shows real-time progress per candidate
+3. Displays ranked results, generated outreach, and analytics
+4. Lets you test Greenhouse / Lever / BambooHR webhooks live
+
+### 3. Run individual agents
+
+```bash
+# Agent 1 — Profile Analyzer
+MOCK_MODE=true python -m uvicorn agent1.app:app --port 8001
+
+# Agent 2 — Job Matcher
+MOCK_MODE=true python -m uvicorn agent2.app:app --port 8002
+
+# Agent 3 — Outreach Coordinator
+MOCK_MODE=true python -m uvicorn agent3.app:app --port 8003
+```
+
+---
+
+## API Reference
+
+### Demo Orchestrator (`demo/app.py`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/` | Full demo UI |
+| `POST` | `/demo/run` | Start 5-candidate pipeline, returns `run_id` |
+| `GET` | `/demo/progress/{run_id}` | Live progress (poll at 600ms) |
+| `GET` | `/analytics/data` | Full analytics JSON |
+| `POST` | `/ats/{provider}/test` | Fire mock ATS webhook (greenhouse/lever/bamboohr) |
+| `GET` | `/health` | Status check |
+
+### Agent 1 — Profile Analyzer
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/analyze` | Score a candidate profile (body: `{profile_text}`) |
+| `GET` | `/history` | Recent scores (tenant-scoped via `X-Company-ID`) |
+| `POST` | `/ats/{provider}/webhook` | Live ATS webhook receiver |
+| `POST` | `/ats/{provider}/test` | Mock ATS test |
+| `GET` | `/ats/integrations` | List ATS providers + status |
+| `POST` | `/companies` | Register tenant company |
+| `GET` | `/companies` | List all tenants |
+| `POST` | `/outcomes` | Record hiring outcome |
+
+### Agent 2 — Job Matcher
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/match` | Match candidate to job (body: profile + job + agent1 scores) |
+| `GET` | `/history` | Recent matches (tenant-scoped) |
+
+### Agent 3 — Outreach Coordinator
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/generate` | Generate full outreach campaign |
+| `GET` | `/history` | Recent campaigns (tenant-scoped) |
+| `GET` | `/pipeline` | Cross-agent pipeline dashboard (HTML) |
+| `GET` | `/analytics` | Chart.js analytics dashboard (HTML) |
+| `GET` | `/analytics/data` | Raw analytics JSON |
+
+---
+
+## Multi-Tenant Usage
+
+All endpoints accept an `X-Company-ID` header for tenant isolation:
+
+```bash
+# Analyse a candidate for tenant "acme-corp"
+curl -X POST http://localhost:8001/analyze \
+  -H "Content-Type: application/json" \
+  -H "X-Company-ID: acme-corp" \
+  -d '{"profile_text": "Jane Doe — AI Engineer..."}'
+
+# Retrieve only acme-corp's history
+curl http://localhost:8001/history \
+  -H "X-Company-ID: acme-corp"
+```
+
+---
+
+## ATS Integrations
+
+VelocityHire accepts live webhooks from:
+
+| Provider | Event | Endpoint |
+|----------|-------|----------|
+| 🌿 Greenhouse | `candidate.created` | `POST /ats/greenhouse/webhook` |
+| ⚙️ Lever | `candidateCreated` | `POST /ats/lever/webhook` |
+| 🎋 BambooHR | `employee.hired` | `POST /ats/bamboohr/webhook` |
+
+**Test without a real ATS connection:**
+```bash
+curl -X POST http://localhost:8000/ats/greenhouse/test
+# → Aisha Nakamura: 94/100 Top Performer 🚀 Fast-track to interview
+```
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MOCK_MODE` | `true` | Use rule-based scoring (no LLM API needed) |
+| `DB_PATH` | `./velocityhire.db` | SQLite database path |
+| `AGENT1_URL` | — | Agent 1 base URL (for Agent 3 cross-agent calls) |
+| `AGENT2_URL` | — | Agent 2 base URL |
+
+> **Note:** `MOCK_MODE=true` uses deterministic rule-based scoring — no external API key required.
+> Set `MOCK_MODE=false` and configure Deploy AI credentials to use LLM-enhanced scoring.
+
+---
+
+## Key Innovation
+
+Most ATS systems rank by **credentials** — degrees, years of experience, previous companies.
+
+VelocityHire ranks by **learning trajectory**:
+
+- A bootcamp grad who won 2 hackathons last month and published an LLM tool used by 500 people
+  scores **higher** than a 10-year Java developer with no recent activity.
+- Startup founding-team experience is weighted over big-company tenure.
+- A GCP cert from last month scores higher than an Oracle cert from 2016.
+
+This reflects how the best startup engineering teams actually evaluate candidates.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Agent orchestration | LangGraph 0.2.x (StateGraph, conditional edges) |
+| API framework | FastAPI + Uvicorn |
+| Persistence | SQLite via SQLAlchemy 2.0 (multi-tenant) |
+| Analytics | Custom Python + Chart.js |
+| ATS integrations | Webhook normalisers (Greenhouse, Lever, BambooHR) |
+| Scoring | Rule-based (MOCK_MODE) / Deploy AI LLM (production) |
+
+---
+
+## Logs
+
+All agents write structured JSON logs to `logs/`:
+
+```bash
+tail -f logs/demo.log    # Demo orchestrator
+tail -f logs/agent1.log  # Profile Analyzer
+tail -f logs/agent3.log  # Outreach Coordinator
+```
+
+---
+
+*Built for the Complete.dev Hackathon · February 2026*

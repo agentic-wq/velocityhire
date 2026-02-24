@@ -17,6 +17,7 @@ import logging
 import threading
 import uuid
 import os
+import concurrent.futures
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -242,6 +243,16 @@ DEMO_CANDIDATES: List[Dict] = [
 _runs: Dict[str, Any] = {}
 
 
+_AGENT_TIMEOUT_SECS = 30   # per-agent call timeout; prevents demo hang
+
+
+def _call_with_timeout(fn, timeout, *args, **kwargs):
+    """Run fn(*args, **kwargs) in a thread pool with a hard timeout."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        fut = ex.submit(fn, *args, **kwargs)
+        return fut.result(timeout=timeout)
+
+
 def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
     """Execute all 3 agents for all demo candidates (runs in background thread)."""
     run = _runs[run_id]
@@ -262,112 +273,130 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
             run["candidates"][idx]["stage"] = "agent1"
             logger.info("[%s] Agent 1 → %s", run_id, name)
 
-            a1           = analyze_profile(profile)
-            adapt_score  = a1.get("adaptability_score", 50)
-            adapt_tier   = a1.get("tier", "Standard")
-            recommend_a1 = a1.get("recommend_interview", False)
+            try:
+                a1 = _call_with_timeout(analyze_profile, _AGENT_TIMEOUT_SECS, profile)
+            except concurrent.futures.TimeoutError:
+                logger.warning("[%s] Agent 1 timed out for %s — using fallback", run_id, name)
+                a1 = {"adaptability_score": 50, "tier": "Standard",
+                      "recommend_interview": False, "reasoning": "Timeout — default score applied",
+                      "score_breakdown": {}}
+
+            adapt_score  = int(a1.get("adaptability_score") or 50)
+            adapt_tier   = a1.get("tier") or "Standard"
 
             run["candidates"][idx]["adaptability_score"] = adapt_score
             run["candidates"][idx]["adaptability_tier"]  = adapt_tier
 
-            if DB_ENABLED:
-                try:
-                    save_candidate_score(
-                        profile, a1,
-                        candidate_name=name,
-                        company_id=company_id,
-                    )
-                except Exception as e:
-                    logger.warning("save_candidate_score failed (non-fatal): %s", e)
+            try:
+                if DB_ENABLED:
+                    save_candidate_score(profile, a1, candidate_name=name, company_id=company_id)
+            except Exception as e:
+                logger.warning("save_candidate_score non-fatal: %s", e)
 
             # ── Agent 2: Job Matching ─────────────────────────────────────────
             run["candidates"][idx]["stage"] = "agent2"
             logger.info("[%s] Agent 2 → %s", run_id, name)
 
-            a2 = match_candidate(
-                job_title=DEMO_JOB["job_title"],
-                job_description=DEMO_JOB["job_description"],
-                required_skills=DEMO_JOB["required_skills"],
-                candidate_name=name,
-                candidate_profile=profile,
-                adaptability_score=adapt_score,
-                adaptability_tier=adapt_tier,
-            )
+            try:
+                a2 = _call_with_timeout(
+                    match_candidate, _AGENT_TIMEOUT_SECS,
+                    job_title=DEMO_JOB["job_title"],
+                    job_description=DEMO_JOB["job_description"],
+                    required_skills=DEMO_JOB["required_skills"],
+                    candidate_name=name,
+                    candidate_profile=profile,
+                    adaptability_score=adapt_score,
+                    adaptability_tier=adapt_tier,
+                )
+            except concurrent.futures.TimeoutError:
+                logger.warning("[%s] Agent 2 timed out for %s — using fallback", run_id, name)
+                weighted = round((adapt_score / 100) * 60, 1)
+                a2 = {"total_match_score": int(weighted + 10), "match_tier": "Unknown",
+                      "recommend_interview": adapt_score >= 70,
+                      "reasoning": "Timeout — estimated from adaptability only",
+                      "score_breakdown": {"adaptability": {"weighted_score": weighted,
+                                          "agent1_raw": adapt_score},
+                                          "role_fit": {"matched_skills": []},
+                                          "culture_fit": {"startup_experience": False}}}
 
-            match_score     = a2.get("total_match_score", 50)
-            match_tier      = a2.get("match_tier", "Standard")
-            breakdown       = a2.get("score_breakdown", {})
-            matched_skills  = breakdown.get("role_fit", {}).get("matched_skills", [])
-            startup_exp     = breakdown.get("culture_fit", {}).get("startup_experience", False)
-            recommend       = a2.get("recommend_interview", False)
-            reasoning       = a2.get("reasoning", "")
+            match_score    = int(a2.get("total_match_score") or 0)
+            match_tier     = a2.get("match_tier") or "Unknown"
+            breakdown      = a2.get("score_breakdown") or {}
+            matched_skills = breakdown.get("role_fit", {}).get("matched_skills", []) or []
+            startup_exp    = breakdown.get("culture_fit", {}).get("startup_experience", False)
+            recommend      = bool(a2.get("recommend_interview"))
+            reasoning      = a2.get("reasoning") or ""
 
             run["candidates"][idx]["match_score"] = match_score
             run["candidates"][idx]["match_tier"]  = match_tier
 
-            if DB_ENABLED:
-                try:
-                    save_job_match(
-                        {
-                            **a2,
-                            "candidate_name": name,
-                            "job_title":      DEMO_JOB["job_title"],
-                        },
-                        company_id=company_id,
-                    )
-                except Exception as e:
-                    logger.warning("save_job_match failed (non-fatal): %s", e)
+            try:
+                if DB_ENABLED:
+                    save_job_match({**a2, "candidate_name": name,
+                                   "job_title": DEMO_JOB["job_title"]},
+                                  company_id=company_id)
+            except Exception as e:
+                logger.warning("save_job_match non-fatal: %s", e)
 
             # ── Agent 3: Outreach Generation ──────────────────────────────────
             run["candidates"][idx]["stage"] = "agent3"
             logger.info("[%s] Agent 3 → %s", run_id, name)
 
-            a3 = generate_outreach(
-                candidate_name=name,
-                candidate_profile=profile,
-                job_title=DEMO_JOB["job_title"],
-                company_name=DEMO_JOB["company_name"],
-                recruiter_name=DEMO_JOB["recruiter_name"],
-                total_match_score=match_score,
-                match_tier=match_tier,
-                adaptability_score=adapt_score,
-                adaptability_tier=adapt_tier,
-                matched_skills=matched_skills,
-                startup_experience=startup_exp,
-                recommend_interview=recommend,
-                reasoning=reasoning,
-            )
+            try:
+                a3 = _call_with_timeout(
+                    generate_outreach, _AGENT_TIMEOUT_SECS,
+                    candidate_name=name,
+                    candidate_profile=profile,
+                    job_title=DEMO_JOB["job_title"],
+                    company_name=DEMO_JOB["company_name"],
+                    recruiter_name=DEMO_JOB["recruiter_name"],
+                    total_match_score=match_score,
+                    match_tier=match_tier,
+                    adaptability_score=adapt_score,
+                    adaptability_tier=adapt_tier,
+                    matched_skills=matched_skills,
+                    startup_experience=startup_exp,
+                    recommend_interview=recommend,
+                    reasoning=reasoning,
+                )
+            except concurrent.futures.TimeoutError:
+                logger.warning("[%s] Agent 3 timed out for %s — using fallback", run_id, name)
+                tier = ("PRIORITY" if match_score >= 85 else "STANDARD" if match_score >= 70
+                        else "NURTURE" if match_score >= 55 else "ARCHIVE")
+                a3 = {"outreach_tier": tier, "tone": "professional", "key_highlights": [],
+                      "campaign": {"linkedin_message": f"Hi {name.split()[0]}, great profile!",
+                                   "email": {"subject": "Opportunity at VelocityHire",
+                                             "body": "We'd love to connect."},
+                                   "followup": {"subject": "", "body": ""},
+                                   "recruiter_note": f"Timeout — manual review recommended for {name}"}}
 
-            outreach_tier = a3.get("outreach_tier", "ARCHIVE")
-            campaign      = a3.get("campaign", {})
+            outreach_tier = a3.get("outreach_tier") or "ARCHIVE"
+            campaign      = a3.get("campaign") or {}
 
             run["candidates"][idx]["outreach_tier"] = outreach_tier
             run["candidates"][idx]["stage"]         = "done"
 
-            if DB_ENABLED:
-                try:
-                    save_outreach(
-                        {
-                            "candidate_name":    name,
-                            "job_title":         DEMO_JOB["job_title"],
-                            "company_name":      DEMO_JOB["company_name"],
-                            "recruiter_name":    DEMO_JOB["recruiter_name"],
-                            "total_match_score": match_score,
-                            "adaptability_score":adapt_score,
-                            "outreach_tier":     outreach_tier,
-                            "tone":              a3.get("tone", ""),
-                            "key_highlights":    json.dumps(a3.get("key_highlights", [])),
-                            "linkedin_message":  campaign.get("linkedin_message", ""),
-                            "email_subject":     campaign.get("email", {}).get("subject", ""),
-                            "email_body":        campaign.get("email", {}).get("body", ""),
-                            "followup_subject":  campaign.get("followup", {}).get("subject", ""),
-                            "followup_body":     campaign.get("followup", {}).get("body", ""),
-                            "recruiter_note":    campaign.get("recruiter_note", ""),
-                        },
-                        company_id=company_id,
-                    )
-                except Exception as e:
-                    logger.warning("save_outreach failed (non-fatal): %s", e)
+            try:
+                if DB_ENABLED:
+                    save_outreach({
+                        "candidate_name":     name,
+                        "job_title":          DEMO_JOB["job_title"],
+                        "company_name":       DEMO_JOB["company_name"],
+                        "recruiter_name":     DEMO_JOB["recruiter_name"],
+                        "total_match_score":  match_score,
+                        "adaptability_score": adapt_score,
+                        "outreach_tier":      outreach_tier,
+                        "tone":               a3.get("tone", ""),
+                        "key_highlights":     json.dumps(a3.get("key_highlights", [])),
+                        "linkedin_message":   campaign.get("linkedin_message", ""),
+                        "email_subject":      campaign.get("email", {}).get("subject", ""),
+                        "email_body":         campaign.get("email", {}).get("body", ""),
+                        "followup_subject":   campaign.get("followup", {}).get("subject", ""),
+                        "followup_body":      campaign.get("followup", {}).get("body", ""),
+                        "recruiter_note":     campaign.get("recruiter_note", ""),
+                    }, company_id=company_id)
+            except Exception as e:
+                logger.warning("save_outreach non-fatal: %s", e)
 
             results.append({
                 "name":               name,
@@ -378,7 +407,7 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                 "match_tier":         match_tier,
                 "outreach_tier":      outreach_tier,
                 "recommend":          recommend,
-                "key_highlights":     a3.get("key_highlights", []),
+                "key_highlights":     a3.get("key_highlights") or [],
                 "linkedin_message":   campaign.get("linkedin_message", ""),
                 "email_subject":      campaign.get("email", {}).get("subject", ""),
                 "email_body":         campaign.get("email", {}).get("body", ""),
@@ -391,14 +420,23 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                         run_id, name, adapt_score, match_score, outreach_tier)
 
         except Exception as exc:
-            logger.error("[%s] ❌ Pipeline error for %s: %s", run_id, name, exc)
+            logger.error("[%s] ❌ Pipeline error for %s: %s", run_id, name, exc, exc_info=True)
             run["candidates"][idx]["stage"] = "error"
             run["candidates"][idx]["error"] = str(exc)
+            # Add a graceful partial result so the UI still shows this candidate
+            results.append({
+                "name":          name,
+                "emoji":         cand["emoji"],
+                "outreach_tier": "ARCHIVE",
+                "recommend":     False,
+                "error":         str(exc),
+            })
 
     run["status"]       = "done"
     run["results"]      = results
     run["completed_at"] = datetime.utcnow().isoformat()
-    logger.info("[%s] Pipeline complete — %d candidates processed", run_id, len(results))
+    logger.info("[%s] Pipeline complete — %d/%d candidates processed",
+                run_id, sum(1 for r in results if "error" not in r), len(results))
 
 
 # ── HTML ──────────────────────────────────────────────────────────────────────
