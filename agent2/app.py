@@ -6,7 +6,7 @@ VelocityHire Hackathon Prototype
 import json, logging, os, sys
 from pathlib import Path
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -27,13 +27,14 @@ from agent_2 import match_candidate
 
 # ── Phase 4: shared memory ────────────────────────────────────────────────────
 try:
-    from shared.db_memory import save_job_match, get_recent_matches, get_db_stats
+    from shared.db_memory import save_job_match, get_recent_matches, get_db_stats, get_company_stats
     DB_ENABLED = True
 except ImportError:
     DB_ENABLED = False
     def save_job_match(*a, **kw): return None            # noqa: E704
     def get_recent_matches(*a, **kw): return []          # noqa: E704
     def get_db_stats(*a, **kw): return {"db_persistence": False}  # noqa: E704
+    def get_company_stats(*a, **kw): return {}           # noqa: E704
 
 app = FastAPI(title="Agent 2 — Job Matcher", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -421,7 +422,11 @@ async def proxy_agent1(req: Agent1Request):
 
 
 @app.post("/match")
-async def match(req: MatchRequest):
+async def match(
+    req: MatchRequest,
+    x_company_id: Optional[str] = Header(default="demo"),
+):
+    company_id = (x_company_id or "demo").strip()
     if not req.job_title.strip() or not req.candidate_profile.strip():
         raise HTTPException(status_code=400, detail="job_title and candidate_profile are required")
     logger.info("Match request: %s → %s", req.candidate_name, req.job_title)
@@ -451,19 +456,22 @@ async def match(req: MatchRequest):
         adaptability_tier=adapt_tier,
     )
     logger.info("Match complete: score=%s tier=%s", result.get("total_match_score"), result.get("match_tier"))
-    # Phase 4 — persist to shared memory (non-blocking)
+    # Phase 4 — persist to shared memory (tenant-scoped, non-blocking)
     try:
-        save_job_match(result)
+        save_job_match(result, company_id=company_id)
     except Exception as db_err:
         logger.warning("DB persist (non-critical): %s", str(db_err))
     return JSONResponse(content=result)
 
 
 @app.get("/history")
-async def history(limit: int = 20):
-    """Phase 4 — Return recent job-match results from shared memory."""
+async def history(
+    limit: int = 20,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Phase 4 — Return recent job-match results, scoped to tenant if header provided."""
     try:
-        records = get_recent_matches(limit)
-        return JSONResponse(content={"count": len(records), "records": records})
+        records = get_recent_matches(limit, company_id=x_company_id or None)
+        return JSONResponse(content={"count": len(records), "company_id": x_company_id, "records": records})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

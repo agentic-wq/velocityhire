@@ -14,7 +14,8 @@ import os
 import sys
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Header
+from typing import Optional
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -41,13 +42,20 @@ from profile_fetcher import fetch_linkedin_profile
 
 # ── Phase 4: shared memory (non-fatal if sqlalchemy not installed) ────────────
 try:
-    from shared.db_memory import save_candidate_score, get_recent_candidates, get_db_stats
+    from shared.db_memory import (
+        save_candidate_score, get_recent_candidates, get_db_stats,
+        register_company, list_companies, get_company_stats, get_company,
+    )
     DB_ENABLED = True
 except ImportError:
     DB_ENABLED = False
-    def save_candidate_score(*a, **kw): return None      # noqa: E704
-    def get_recent_candidates(*a, **kw): return []       # noqa: E704
-    def get_db_stats(*a, **kw): return {"db_persistence": False}  # noqa: E704
+    def save_candidate_score(*a, **kw): return None                    # noqa: E704
+    def get_recent_candidates(*a, **kw): return []                     # noqa: E704
+    def get_db_stats(*a, **kw): return {"db_persistence": False}       # noqa: E704
+    def register_company(*a, **kw): return None                        # noqa: E704
+    def list_companies(*a, **kw): return []                            # noqa: E704
+    def get_company_stats(*a, **kw): return {}                         # noqa: E704
+    def get_company(*a, **kw): return None                             # noqa: E704
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(title="Agent 1 — Profile Analyzer", version="1.0.0")
@@ -773,7 +781,11 @@ async def fetch_profile(req: FetchRequest):
 
 
 @app.post("/analyze")
-async def analyze(req: ProfileRequest):
+async def analyze(
+    req: ProfileRequest,
+    x_company_id: Optional[str] = Header(default="demo"),
+):
+    company_id = (x_company_id or "demo").strip()
     if not req.profile_text.strip():
         raise HTTPException(status_code=400, detail="profile_text cannot be empty")
     logger.info("Received analysis request (%d chars)", len(req.profile_text))
@@ -786,9 +798,9 @@ async def analyze(req: ProfileRequest):
         )
         logger.info("Analysis complete — score=%s tier=%s",
                     result.get("adaptability_score"), result.get("tier"))
-        # Phase 4 — persist to shared memory (non-blocking)
+        # Phase 4 — persist to shared memory (tenant-scoped, non-blocking)
         try:
-            save_candidate_score(req.profile_text, result)
+            save_candidate_score(req.profile_text, result, company_id=company_id)
         except Exception as db_err:
             logger.warning("DB persist (non-critical): %s", str(db_err))
         return JSONResponse(content=result)
@@ -798,10 +810,65 @@ async def analyze(req: ProfileRequest):
 
 
 @app.get("/history")
-async def history(limit: int = 20):
-    """Phase 4 — Return recent adaptability scores from shared memory."""
+async def history(
+    limit: int = 20,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Phase 4 — Return recent adaptability scores, scoped to tenant if header provided."""
     try:
-        records = get_recent_candidates(limit)
-        return JSONResponse(content={"count": len(records), "records": records})
+        records = get_recent_candidates(limit, company_id=x_company_id or None)
+        return JSONResponse(content={"count": len(records), "company_id": x_company_id, "records": records})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Company / tenant management endpoints ─────────────────────────────────────
+
+class CompanyRequest(BaseModel):
+    company_id: str
+    company_name: str
+    plan: str = "starter"
+    api_key: Optional[str] = None
+
+
+@app.post("/companies")
+async def create_company(req: CompanyRequest):
+    """Register a new tenant company."""
+    try:
+        row_id = register_company(
+            company_id=req.company_id,
+            company_name=req.company_name,
+            plan=req.plan,
+            api_key=req.api_key,
+        )
+        if row_id is None:
+            raise HTTPException(status_code=500, detail="Failed to register company")
+        return JSONResponse(content={
+            "status": "registered",
+            "company_id": req.company_id.lower().replace(" ", "-"),
+            "row_id": row_id,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/companies")
+async def get_companies():
+    """List all registered tenant companies."""
+    try:
+        companies = list_companies()
+        return JSONResponse(content={"count": len(companies), "companies": companies})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/companies/{company_id}/stats")
+async def company_stats(company_id: str):
+    """Pipeline statistics scoped to a single tenant."""
+    try:
+        stats = get_company_stats(company_id)
+        return JSONResponse(content=stats)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

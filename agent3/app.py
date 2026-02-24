@@ -6,7 +6,7 @@ VelocityHire Hackathon Prototype
 import json, logging, os, sys
 from pathlib import Path
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
@@ -30,16 +30,19 @@ try:
     from shared.db_memory import (
         save_outreach, get_recent_campaigns, get_pipeline_summary,
         get_recent_candidates, get_recent_matches, get_db_stats,
+        get_company_stats, list_companies,
     )
     DB_ENABLED = True
 except ImportError:
     DB_ENABLED = False
-    def save_outreach(*a, **kw): return None                      # noqa: E704
-    def get_recent_campaigns(*a, **kw): return []                 # noqa: E704
-    def get_pipeline_summary(*a, **kw): return {}                 # noqa: E704
-    def get_recent_candidates(*a, **kw): return []                # noqa: E704
-    def get_recent_matches(*a, **kw): return []                   # noqa: E704
-    def get_db_stats(*a, **kw): return {"db_persistence": False}  # noqa: E704
+    def save_outreach(*a, **kw): return None                       # noqa: E704
+    def get_recent_campaigns(*a, **kw): return []                  # noqa: E704
+    def get_pipeline_summary(*a, **kw): return {}                  # noqa: E704
+    def get_recent_candidates(*a, **kw): return []                 # noqa: E704
+    def get_recent_matches(*a, **kw): return []                    # noqa: E704
+    def get_db_stats(*a, **kw): return {"db_persistence": False}   # noqa: E704
+    def get_company_stats(*a, **kw): return {}                     # noqa: E704
+    def list_companies(*a, **kw): return []                        # noqa: E704
 
 app = FastAPI(title="Agent 3 — Outreach Coordinator", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -490,7 +493,11 @@ async def proxy_agent2(body: dict):
 
 
 @app.post("/generate")
-async def generate(req: OutreachRequest):
+async def generate(
+    req: OutreachRequest,
+    x_company_id: Optional[str] = Header(default="demo"),
+):
+    company_id = (x_company_id or "demo").strip()
     # Auto-fetch scores from Agent 1 + 2 if not provided
     adapt_score = req.adaptability_score
     adapt_tier  = req.adaptability_tier or "Unknown"
@@ -549,9 +556,9 @@ async def generate(req: OutreachRequest):
         reasoning=reasoning,
     )
     logger.info("Outreach generated: tier=%s candidate=%s", result.get("outreach_tier"), req.candidate_name)
-    # Phase 4 — persist to shared memory (non-blocking)
+    # Phase 4 — persist to shared memory (tenant-scoped, non-blocking)
     try:
-        save_outreach(result)
+        save_outreach(result, company_id=company_id)
     except Exception as db_err:
         logger.warning("DB persist (non-critical): %s", str(db_err))
     return JSONResponse(content=result)
@@ -560,23 +567,32 @@ async def generate(req: OutreachRequest):
 # ── Phase 4 endpoints ────────────────────────────────────────────────────────
 
 @app.get("/history")
-async def history(limit: int = 20):
-    """Phase 4 — Return recent outreach campaigns from shared memory."""
+async def history(
+    limit: int = 20,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Phase 4 — Return recent outreach campaigns, scoped to tenant if header provided."""
     try:
-        records = get_recent_campaigns(limit)
-        return JSONResponse(content={"count": len(records), "records": records})
+        records = get_recent_campaigns(limit, company_id=x_company_id or None)
+        return JSONResponse(content={"count": len(records), "company_id": x_company_id, "records": records})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/pipeline", response_class=HTMLResponse)
-async def pipeline_dashboard():
-    """Phase 4 — Full cross-agent pipeline dashboard (HTML)."""
+async def pipeline_dashboard(
+    company: Optional[str] = None,
+    x_company_id: Optional[str] = Header(default=None),
+):
+    """Phase 4 — Full cross-agent pipeline dashboard (HTML), tenant-scoped."""
+    # company param from query string takes priority, then header
+    tenant = company or x_company_id or None
     try:
-        candidates  = get_recent_candidates(50)
-        matches     = get_recent_matches(50)
-        campaigns   = get_recent_campaigns(50)
+        candidates  = get_recent_candidates(50, company_id=tenant)
+        matches     = get_recent_matches(50,     company_id=tenant)
+        campaigns   = get_recent_campaigns(50,   company_id=tenant)
         db_stats    = get_db_stats()
+        all_tenants = list_companies()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -658,9 +674,18 @@ async def pipeline_dashboard():
   <span class="badge" style="margin-left:auto;">Shared Memory · {db_stats.get("db_path","SQLite")[-30:]}</span>
 </header>
 <div class="container">
-  <div style="margin-bottom:20px;">
-    <h1>Cross-Agent Pipeline Dashboard</h1>
-    <p style="color:var(--muted);margin-top:4px;">All candidates scored by Agents 1, 2 &amp; 3 — persisted to shared SQLite memory</p>
+  <div style="margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <h1>Cross-Agent Pipeline Dashboard</h1>
+      <p style="color:var(--muted);margin-top:4px;">All candidates scored by Agents 1, 2 &amp; 3 — persisted to shared SQLite memory</p>
+    </div>
+    <form method="get" action="/pipeline" style="display:flex;gap:8px;align-items:center;">
+      <label style="font-size:.75rem;color:var(--muted);">Company:</label>
+      <select name="company" onchange="this.form.submit()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 10px;font-size:.8rem;cursor:pointer;">
+        <option value="">All companies</option>
+        {"".join(f'<option value="{c["company_id"]}" {"selected" if c["company_id"]==tenant else ""}>{c["company_name"]} ({c["company_id"]})</option>' for c in all_tenants)}
+      </select>
+    </form>
   </div>
   <div class="stats">
     <div class="stat-card"><div class="num">{db_stats.get("candidates",0)}</div><div class="lbl">Profiles Analyzed<br>(Agent 1)</div></div>
