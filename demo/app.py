@@ -21,7 +21,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from dotenv import load_dotenv
@@ -82,6 +82,22 @@ try:
 except ImportError:
     ANALYTICS_ENABLED = False
     def get_full_analytics(*a, **kw): return {}
+
+try:
+    from shared.ats_integrations import (
+        normalise as ats_normalise,
+        get_mock_payload,
+        list_integrations as ats_list_integrations,
+    )
+    ATS_ENABLED = True
+    logger.info("ATS integrations module enabled")
+except ImportError:
+    ATS_ENABLED = False
+    def ats_normalise(*a, **kw):         return None   # noqa: E704
+    def get_mock_payload(*a, **kw):      return {}     # noqa: E704
+    def ats_list_integrations(*a, **kw): return {}     # noqa: E704
+
+_ats_demo_log: list = []
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="VelocityHire Demo", version="5.0.0")
@@ -535,6 +551,42 @@ tr:hover td{background:rgba(108,99,255,.04)}
 .insight-detail{font-size:.75rem;color:var(--muted);margin-bottom:8px;line-height:1.5}
 .insight-rec{font-size:.73rem;color:var(--faint);font-style:italic;line-height:1.5}
 
+/* ── ATS integrations ── */
+.ats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
+  gap:18px;margin-bottom:36px}
+.ats-card{background:var(--surface);border-radius:16px;border:1px solid var(--border);
+  overflow:hidden}
+.ats-head{padding:16px 20px;display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid var(--border)}
+.ats-logo{font-size:1.8rem}
+.ats-info{flex:1}
+.ats-name{font-weight:700;font-size:.95rem}
+.ats-event{font-size:.73rem;color:var(--muted);margin-top:2px}
+.ats-status{width:8px;height:8px;border-radius:50%;background:var(--success);
+  box-shadow:0 0 6px var(--success)}
+.ats-body{padding:16px 20px}
+.ats-webhook{font-size:.73rem;color:var(--faint);font-family:monospace;
+  background:var(--surface2);padding:6px 10px;border-radius:6px;margin-bottom:12px;
+  word-break:break-all}
+.ats-test-btn{width:100%;padding:10px;border-radius:8px;border:none;
+  background:linear-gradient(135deg,var(--primary),var(--primary-l));
+  color:#fff;font-size:.85rem;font-weight:600;cursor:pointer;transition:all .2s}
+.ats-test-btn:hover{transform:translateY(-1px);box-shadow:0 4px 15px rgba(108,99,255,.35)}
+.ats-test-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.ats-result{margin-top:12px;padding:10px;background:var(--surface2);border-radius:8px;
+  font-size:.78rem;display:none}
+.ats-log-wrap{background:var(--surface);border-radius:16px;border:1px solid var(--border);
+  margin-bottom:36px;overflow:hidden}
+.ats-log-head{padding:14px 20px;background:var(--surface2);border-bottom:1px solid var(--border);
+  font-size:.85rem;font-weight:600}
+.ats-log-body{padding:0}
+.ats-log-row{display:grid;grid-template-columns:1fr 1.2fr .8fr .8fr .8fr;
+  gap:12px;padding:12px 20px;border-bottom:1px solid rgba(42,42,74,.4);
+  font-size:.8rem;align-items:center}
+.ats-log-row:last-child{border-bottom:none}
+.ats-log-header{background:var(--surface2);font-weight:600;font-size:.72rem;
+  color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+
 /* ── Utils ── */
 .hidden{display:none!important}
 .spinner{display:inline-block;width:14px;height:14px;
@@ -674,6 +726,92 @@ tr:hover td{background:rgba(108,99,255,.04)}
     </div>
 
   </div><!-- /resultsSection -->
+
+  <!-- ── ATS Integrations section (always visible) ────────────────────── -->
+  <div id="atsSection">
+    <div class="section-title" style="margin-top:20px">
+      <span class="dot" style="background:#22c55e"></span>
+      Enterprise ATS Integrations
+      <span style="font-size:.78rem;color:var(--muted);font-weight:400">
+        — click Test to fire a live mock webhook
+      </span>
+    </div>
+    <div class="ats-grid">
+
+      <!-- Greenhouse -->
+      <div class="ats-card">
+        <div class="ats-head">
+          <div class="ats-logo">🌿</div>
+          <div class="ats-info">
+            <div class="ats-name">Greenhouse</div>
+            <div class="ats-event">candidate.created webhook</div>
+          </div>
+          <div class="ats-status" title="Active"></div>
+        </div>
+        <div class="ats-body">
+          <div class="ats-webhook">POST /ats/greenhouse/webhook</div>
+          <button class="ats-test-btn" id="ats-btn-greenhouse"
+                  onclick="testATS('greenhouse')">
+            🌿 Test Greenhouse Webhook
+          </button>
+          <div class="ats-result" id="ats-result-greenhouse"></div>
+        </div>
+      </div>
+
+      <!-- Lever -->
+      <div class="ats-card">
+        <div class="ats-head">
+          <div class="ats-logo">⚙️</div>
+          <div class="ats-info">
+            <div class="ats-name">Lever</div>
+            <div class="ats-event">candidateCreated webhook</div>
+          </div>
+          <div class="ats-status" title="Active"></div>
+        </div>
+        <div class="ats-body">
+          <div class="ats-webhook">POST /ats/lever/webhook</div>
+          <button class="ats-test-btn" id="ats-btn-lever"
+                  onclick="testATS('lever')">
+            ⚙️ Test Lever Webhook
+          </button>
+          <div class="ats-result" id="ats-result-lever"></div>
+        </div>
+      </div>
+
+      <!-- BambooHR -->
+      <div class="ats-card">
+        <div class="ats-head">
+          <div class="ats-logo">🎋</div>
+          <div class="ats-info">
+            <div class="ats-name">BambooHR</div>
+            <div class="ats-event">employee.hired webhook</div>
+          </div>
+          <div class="ats-status" title="Active"></div>
+        </div>
+        <div class="ats-body">
+          <div class="ats-webhook">POST /ats/bamboohr/webhook</div>
+          <button class="ats-test-btn" id="ats-btn-bamboohr"
+                  onclick="testATS('bamboohr')">
+            🎋 Test BambooHR Webhook
+          </button>
+          <div class="ats-result" id="ats-result-bamboohr"></div>
+        </div>
+      </div>
+
+    </div><!-- /ats-grid -->
+
+    <!-- ATS Event log -->
+    <div class="ats-log-wrap" id="atsLogWrap" style="display:none">
+      <div class="ats-log-head">📋 ATS Event Log</div>
+      <div class="ats-log-row ats-log-header">
+        <span>Provider</span><span>Candidate</span>
+        <span>Adaptability</span><span>Tier</span><span>Action</span>
+      </div>
+      <div id="atsLogBody"></div>
+    </div>
+
+  </div><!-- /atsSection -->
+
 </div><!-- /container -->
 
 <script>
@@ -913,6 +1051,64 @@ async function loadAnalytics(){
 
 /* Init */
 initCards();
+
+/* ── ATS integration test ───────────────────────────────────────── */
+const ATS_COLORS={greenhouse:'#3db639',lever:'#006dff',bamboohr:'#74a318'};
+const ATS_TIER_COLOR={PRIORITY:'#22c55e',STANDARD:'#6c63ff',NURTURE:'#f59e0b',ARCHIVE:'#94a3b8'};
+
+async function testATS(provider){
+  const btn=document.getElementById(`ats-btn-${provider}`);
+  const res=document.getElementById(`ats-result-${provider}`);
+  btn.disabled=true;
+  btn.textContent=`⏳ Running Agent 1…`;
+  res.style.display='none';
+  try{
+    const r=await fetch(`/ats/${provider}/test`,{method:'POST'});
+    const d=await r.json();
+    const sc=d.adaptability_score||0;
+    const scColor=sc>=70?'#22c55e':sc>=55?'#f59e0b':'#94a3b8';
+    const tierColor=ATS_TIER_COLOR[d.outreach_tier||'ARCHIVE']||'#94a3b8';
+    res.style.display='block';
+    res.style.borderLeft=`3px solid ${ATS_COLORS[provider]||'#6c63ff'}`;
+    res.innerHTML=`
+      <div style="font-weight:700;margin-bottom:6px">
+        ${d.candidate_name}
+        <span style="font-size:.7rem;color:var(--muted);margin-left:6px">${d.job_title}</span>
+      </div>
+      <div style="display:flex;gap:16px;margin-bottom:6px">
+        <span>Adaptability: <strong style="color:${scColor}">${sc}/100</strong></span>
+        <span>Tier: <strong style="color:${scColor}">${d.tier||'—'}</strong></span>
+      </div>
+      <div style="color:#22c55e;font-size:.75rem">${d.velocityhire_action||''}</div>`;
+    btn.textContent=`✅ Scored — run again`;
+    // Append to log
+    appendATSLog(provider, d);
+  }catch(e){
+    res.style.display='block';
+    res.innerHTML=`<span style="color:#ef4444">Error: ${e.message}</span>`;
+    btn.textContent=`⚠️ Retry`;
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+function appendATSLog(provider, d){
+  const logWrap=document.getElementById('atsLogWrap');
+  const logBody=document.getElementById('atsLogBody');
+  logWrap.style.display='block';
+  const sc=d.adaptability_score||0;
+  const scColor=sc>=70?'#22c55e':sc>=55?'#f59e0b':'#94a3b8';
+  const providerLabels={greenhouse:'🌿 Greenhouse',lever:'⚙️ Lever',bamboohr:'🎋 BambooHR'};
+  const row=document.createElement('div');
+  row.className='ats-log-row';
+  row.innerHTML=`
+    <span style="color:${ATS_COLORS[provider]||'#6c63ff'}">${providerLabels[provider]||provider}</span>
+    <span style="font-weight:600">${d.candidate_name}</span>
+    <span style="color:${scColor};font-weight:700">${sc}/100</span>
+    <span style="color:${scColor}">${d.tier||'—'}</span>
+    <span style="color:#22c55e;font-size:.72rem">${d.velocityhire_action||'—'}</span>`;
+  logBody.insertBefore(row, logBody.firstChild);
+}
 </script>
 </body>
 </html>
@@ -980,3 +1176,75 @@ async def get_results(run_id: str):
         raise HTTPException(status_code=404, detail="Run not found")
     run = _runs[run_id]
     return {"status": run["status"], "results": run.get("results", [])}
+
+
+# ── ATS integration proxy routes ──────────────────────────────────────────────
+
+@app.get("/ats/integrations")
+async def demo_ats_integrations():
+    return JSONResponse(content={
+        "enabled":      ATS_ENABLED,
+        "integrations": ats_list_integrations(),
+        "recent_events":_ats_demo_log[:10],
+    })
+
+
+@app.post("/ats/{provider}/test")
+async def demo_ats_test(provider: str):
+    """Fire built-in mock webhook for a provider and score with Agent 1."""
+    if not ATS_ENABLED:
+        raise HTTPException(status_code=503, detail="ATS module unavailable")
+
+    mock = get_mock_payload(provider)
+    if not mock:
+        raise HTTPException(status_code=404, detail=f"No mock for '{provider}'")
+
+    normalised = ats_normalise(provider, mock)
+    if not normalised:
+        raise HTTPException(status_code=500, detail="Normalisation failed")
+
+    profile_text   = normalised["profile_text"]
+    candidate_name = normalised["candidate_name"]
+    job_title      = normalised.get("job_title", "Unknown Role")
+
+    result = analyze_profile(profile_text)
+
+    if DB_ENABLED:
+        try:
+            save_candidate_score(profile_text, result,
+                                 candidate_name=candidate_name,
+                                 company_id="demo")
+        except Exception:
+            pass
+
+    sc = result.get("adaptability_score", 0)
+    event = {
+        "timestamp":          datetime.utcnow().isoformat() + "Z",
+        "provider":           provider,
+        "candidate_name":     candidate_name,
+        "job_title":          job_title,
+        "adaptability_score": sc,
+        "tier":               result.get("tier"),
+        "recommend_interview":result.get("recommend_interview"),
+    }
+    _ats_demo_log.insert(0, event)
+    if len(_ats_demo_log) > 50:
+        _ats_demo_log.pop()
+
+    return JSONResponse(content={
+        "status":            "scored",
+        "mock":              True,
+        "provider":          provider,
+        "candidate_name":    candidate_name,
+        "job_title":         job_title,
+        "adaptability_score":sc,
+        "tier":              result.get("tier"),
+        "recommend_interview":result.get("recommend_interview"),
+        "reasoning":         result.get("reasoning", ""),
+        "score_breakdown":   result.get("score_breakdown", {}),
+        "velocityhire_action":(
+            "🚀 Fast-track to interview" if sc >= 85 else
+            "✅ Add to interview pipeline" if result.get("recommend_interview") else
+            "📋 Add to nurture pipeline"
+        ),
+    })

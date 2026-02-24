@@ -925,3 +925,156 @@ async def list_outcomes(
         return JSONResponse(content={"count": len(records), "records": records})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── ATS Integrations ──────────────────────────────────────────────────────────
+# Webhook endpoints for Greenhouse, Lever, and BambooHR.
+# Each endpoint:
+#   1. Normalises the provider payload → VelocityHire profile format
+#   2. Runs Agent 1 (adaptability scoring)
+#   3. Persists to shared DB (tenant-scoped)
+#   4. Returns the VelocityHire score + recommendation
+
+try:
+    from shared.ats_integrations import normalise, get_mock_payload, list_integrations
+    ATS_ENABLED = True
+except ImportError:
+    ATS_ENABLED = False
+    def normalise(*a, **kw): return None          # noqa: E704
+    def get_mock_payload(*a, **kw): return {}     # noqa: E704
+    def list_integrations(*a, **kw): return {}    # noqa: E704
+
+
+# In-memory ATS event log (last 50 events — demo only)
+_ats_log: list = []
+
+
+def _process_ats_candidate(
+    provider: str,
+    normalised: dict,
+    company_id: str = "demo",
+) -> dict:
+    """Run Agent 1 on a normalised ATS candidate and persist the result."""
+    profile_text   = normalised["profile_text"]
+    candidate_name = normalised["candidate_name"]
+    job_title      = normalised.get("job_title", "Unknown Role")
+
+    result = analyze_profile(profile_text)
+
+    # Persist (non-fatal)
+    try:
+        save_candidate_score(profile_text, result,
+                             candidate_name=candidate_name,
+                             company_id=company_id)
+    except Exception as exc:
+        logger.warning("ATS DB persist failed (non-fatal): %s", exc)
+
+    event = {
+        "timestamp":         __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "provider":          provider,
+        "candidate_name":    candidate_name,
+        "job_title":         job_title,
+        "company_id":        company_id,
+        "adaptability_score":result.get("adaptability_score"),
+        "tier":              result.get("tier"),
+        "recommend_interview":result.get("recommend_interview"),
+        "source":            normalised.get("source", provider),
+    }
+    _ats_log.insert(0, event)
+    if len(_ats_log) > 50:
+        _ats_log.pop()
+
+    logger.info("ATS [%s] → %s | score=%s tier=%s",
+                provider, candidate_name,
+                result.get("adaptability_score"), result.get("tier"))
+
+    return {
+        "status":            "scored",
+        "provider":          provider,
+        "candidate_name":    candidate_name,
+        "job_title":         job_title,
+        "adaptability_score":result.get("adaptability_score"),
+        "tier":              result.get("tier"),
+        "recommend_interview":result.get("recommend_interview"),
+        "reasoning":         result.get("reasoning", ""),
+        "score_breakdown":   result.get("score_breakdown", {}),
+        "velocityhire_action":(
+            "🚀 Fast-track to interview" if result.get("adaptability_score", 0) >= 85 else
+            "✅ Add to interview pipeline" if result.get("recommend_interview") else
+            "📋 Add to nurture pipeline"
+        ),
+    }
+
+
+@app.get("/ats/integrations")
+async def ats_integrations():
+    """Return metadata for all supported ATS integrations."""
+    return JSONResponse(content={
+        "enabled": ATS_ENABLED,
+        "integrations": list_integrations(),
+        "recent_events": _ats_log[:10],
+    })
+
+
+@app.get("/ats/log")
+async def ats_event_log():
+    """Return recent ATS-triggered scoring events."""
+    return JSONResponse(content={"count": len(_ats_log), "events": _ats_log})
+
+
+@app.post("/ats/{provider}/webhook")
+async def ats_webhook(
+    provider: str,
+    request: Request,
+    x_company_id: Optional[str] = Header(default="demo"),
+):
+    """
+    Receive a live webhook from an ATS provider.
+    Normalises the payload and runs Agent 1 scoring.
+
+    Supported providers: greenhouse · lever · bamboohr
+    """
+    if not ATS_ENABLED:
+        raise HTTPException(status_code=503, detail="ATS module not available")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+    normalised = normalise(provider, payload)
+    if not normalised:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported or malformed payload for provider '{provider}'"
+        )
+
+    company_id = (x_company_id or "demo").strip()
+    return JSONResponse(content=_process_ats_candidate(provider, normalised, company_id))
+
+
+@app.post("/ats/{provider}/test")
+async def ats_test(
+    provider: str,
+    x_company_id: Optional[str] = Header(default="demo"),
+):
+    """
+    Fire a built-in mock webhook for the given provider.
+    Use this to demonstrate the integration without a real ATS connection.
+
+    Supported providers: greenhouse · lever · bamboohr
+    """
+    if not ATS_ENABLED:
+        raise HTTPException(status_code=503, detail="ATS module not available")
+
+    mock = get_mock_payload(provider)
+    if not mock:
+        raise HTTPException(status_code=404, detail=f"No mock payload for provider '{provider}'")
+
+    normalised = normalise(provider, mock)
+    if not normalised:
+        raise HTTPException(status_code=500, detail="Mock normalisation failed")
+
+    company_id = (x_company_id or "demo").strip()
+    result = _process_ats_candidate(provider, normalised, company_id)
+    return JSONResponse(content={**result, "mock": True, "mock_payload_used": mock})
