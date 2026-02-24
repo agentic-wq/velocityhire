@@ -25,6 +25,7 @@ from typing import Dict, Any, Optional, List
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -589,6 +590,41 @@ tr:hover td{background:rgba(108,99,255,.04)}
 .insight-detail{font-size:.75rem;color:var(--muted);margin-bottom:8px;line-height:1.5}
 .insight-rec{font-size:.73rem;color:var(--faint);font-style:italic;line-height:1.5}
 
+/* ── Live scorer ── */
+.scorer-wrap{background:var(--surface);border-radius:16px;border:1px solid var(--border);
+  padding:28px;margin-bottom:36px}
+.scorer-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+@media(max-width:800px){.scorer-grid{grid-template-columns:1fr}}
+.scorer-label{font-size:.8rem;font-weight:600;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.scorer-textarea{width:100%;height:180px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-size:.82rem;padding:12px 14px;
+  font-family:'Inter',-apple-system,sans-serif;resize:vertical;line-height:1.6;
+  outline:none;transition:border-color .2s}
+.scorer-textarea:focus{border-color:var(--primary)}
+.scorer-btn{width:100%;margin-top:12px;padding:13px;border-radius:10px;border:none;
+  background:linear-gradient(135deg,var(--primary),var(--primary-l));
+  color:#fff;font-size:.95rem;font-weight:700;cursor:pointer;transition:all .2s}
+.scorer-btn:hover{transform:translateY(-2px);box-shadow:0 0 25px rgba(108,99,255,.45)}
+.scorer-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.scorer-samples{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.sample-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);
+  padding:5px 12px;border-radius:8px;font-size:.75rem;cursor:pointer;transition:all .2s}
+.sample-btn:hover{border-color:var(--primary);color:var(--primary)}
+.scorer-result{display:none;margin-top:20px;background:var(--surface2);border-radius:12px;
+  padding:20px;border-left:4px solid var(--primary)}
+.score-ring-wrap{display:flex;align-items:center;gap:20px;margin-bottom:16px}
+.score-ring-svg{flex-shrink:0}
+.score-ring-info .name{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+.score-ring-info .tier{font-size:.8rem;color:var(--muted)}
+.score-ring-info .action{font-size:.82rem;margin-top:6px;font-weight:600}
+.dim-bars{display:flex;flex-direction:column;gap:8px}
+.dim-row{display:flex;align-items:center;gap:10px}
+.dim-lbl{font-size:.72rem;color:var(--muted);width:90px;flex-shrink:0;text-align:right}
+.dim-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.dim-fill{height:100%;border-radius:3px;transition:width 1s ease}
+.dim-val{font-size:.75rem;font-weight:700;min-width:36px;text-align:right}
+
 /* ── ATS integrations ── */
 .ats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));
   gap:18px;margin-bottom:36px}
@@ -796,6 +832,94 @@ tr:hover td{background:rgba(108,99,255,.04)}
     </div>
 
   </div><!-- /resultsSection -->
+
+  <!-- ── Live scorer ───────────────────────────────────────────────── -->
+  <div class="section-title" style="margin-top:8px">
+    <span class="dot" style="background:#a78bfa"></span>
+    Try Your Own Candidate
+    <span style="font-size:.78rem;color:var(--muted);font-weight:400">
+      — paste any profile, score through all 3 agents live
+    </span>
+  </div>
+  <div class="scorer-wrap">
+    <div class="scorer-grid">
+      <div>
+        <div class="scorer-label">Candidate Profile</div>
+        <textarea class="scorer-textarea" id="scorerInput"
+          placeholder="Paste a LinkedIn-style profile here…
+
+Example:
+Jane Smith — Senior ML Engineer
+Skills: Python, LangChain, FastAPI, AWS, Docker
+Hackathons: AI Builders (1 month ago) — WINNER
+Certs: AWS ML Specialty (2 months ago)
+GitHub: 55 commits last month"></textarea>
+        <div class="scorer-samples">
+          <span style="font-size:.72rem;color:var(--faint);align-self:center">Load sample:</span>
+          <button class="sample-btn" onclick="loadScorerSample('high')">🏆 High velocity</button>
+          <button class="sample-btn" onclick="loadScorerSample('mid')">✅ Mid tier</button>
+          <button class="sample-btn" onclick="loadScorerSample('low')">📋 Low velocity</button>
+        </div>
+        <button class="scorer-btn" id="scorerBtn" onclick="scoreOne()">
+          ⚡ Score This Candidate (3 Agents)
+        </button>
+      </div>
+      <div>
+        <div class="scorer-label">Live Result</div>
+        <div id="scorerResult" class="scorer-result">
+          <div class="score-ring-wrap">
+            <svg class="score-ring-svg" width="80" height="80" viewBox="0 0 80 80">
+              <circle cx="40" cy="40" r="34" fill="none" stroke="#1e1e3a" stroke-width="8"/>
+              <circle id="sRingFill" cx="40" cy="40" r="34" fill="none" stroke="#6c63ff"
+                stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="213.6" stroke-dashoffset="213.6"
+                transform="rotate(-90 40 40)" style="transition:stroke-dashoffset 1s ease"/>
+              <text id="sRingNum" x="40" y="45" text-anchor="middle"
+                font-size="18" font-weight="900" fill="#e2e8f0">—</text>
+            </svg>
+            <div class="score-ring-info">
+              <div class="name" id="sName">—</div>
+              <div class="tier" id="sTier">—</div>
+              <div class="action" id="sAction">—</div>
+            </div>
+          </div>
+          <div class="dim-bars">
+            <div class="dim-row">
+              <span class="dim-lbl">Hackathons</span>
+              <div class="dim-track"><div class="dim-fill" id="sDim0" style="width:0%;background:#6c63ff"></div></div>
+              <span class="dim-val" id="sDimV0" style="color:#6c63ff">—</span>
+            </div>
+            <div class="dim-row">
+              <span class="dim-lbl">Skills</span>
+              <div class="dim-track"><div class="dim-fill" id="sDim1" style="width:0%;background:#f5a623"></div></div>
+              <span class="dim-val" id="sDimV1" style="color:#f5a623">—</span>
+            </div>
+            <div class="dim-row">
+              <span class="dim-lbl">Certifications</span>
+              <div class="dim-track"><div class="dim-fill" id="sDim2" style="width:0%;background:#3b82f6"></div></div>
+              <span class="dim-val" id="sDimV2" style="color:#3b82f6">—</span>
+            </div>
+            <div class="dim-row">
+              <span class="dim-lbl">Recency</span>
+              <div class="dim-track"><div class="dim-fill" id="sDim3" style="width:0%;background:#22c55e"></div></div>
+              <span class="dim-val" id="sDimV3" style="color:#22c55e">—</span>
+            </div>
+            <div class="dim-row" style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">
+              <span class="dim-lbl">Job Match</span>
+              <div class="dim-track"><div class="dim-fill" id="sDimMatch" style="width:0%;background:#a78bfa"></div></div>
+              <span class="dim-val" id="sDimMatchV" style="color:#a78bfa">—</span>
+            </div>
+          </div>
+          <div id="sOutreachTier" style="margin-top:14px;font-size:.8rem"></div>
+          <div id="sLinkedin" style="margin-top:10px;background:var(--surface);border-radius:8px;
+               padding:10px 12px;font-size:.78rem;color:var(--muted);line-height:1.6;display:none"></div>
+        </div>
+        <div id="scorerPlaceholder" style="color:var(--faint);font-size:.85rem;padding:20px 0;text-align:center">
+          Results will appear here after scoring
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ── ATS Integrations section (always visible) ────────────────────── -->
   <div id="atsSection">
@@ -1122,6 +1246,124 @@ async function loadAnalytics(){
 /* Init */
 initCards();
 
+/* ── Live scorer ────────────────────────────────────────────────── */
+const SCORER_SAMPLES = {
+  high: `Kenji Watanabe — AI Engineer
+Skills: Python, LangGraph, LangChain, FastAPI, React, AWS, Rust, Svelte
+Experience:
+  - NeuralStack startup (2022-present): Lead AI engineer. Built multi-agent pipeline.
+  - SeedCo (2020-2022): Founding engineer, shipped 3 products.
+Hackathons:
+  - Global AI Hack (3 weeks ago) — WINNER, best LLM integration, solo entry.
+  - Junction Helsinki (2 months ago) — WINNER, led team of 4.
+Certifications:
+  - AWS Certified ML Specialty (1 month ago)
+  - LangGraph Advanced Bootcamp (3 weeks ago)
+GitHub: 72 commits last month. LangGraph OSS contributor.
+Blog: "Building production agents" published last week.`,
+
+  mid: `Fatima Al-Hassan — Full Stack Developer
+Skills: React, Node.js, Python, PostgreSQL, Docker, GCP
+Experience:
+  - TechCorp (2021-present): Senior developer. Led 3 feature launches.
+  - Agency (2019-2021): Frontend developer.
+Hackathons:
+  - Local Startup Weekend (5 months ago) — Finalist.
+Certifications:
+  - GCP Professional Developer (4 months ago)
+GitHub: 15 commits last month. Starting to explore LangChain.`,
+
+  low: `Robert Chen — Senior Java Developer
+Skills: Java, Spring Boot, Oracle DB, Maven, Hibernate
+Experience:
+  - BankCorp (2014-present): Maintains legacy core banking system.
+  - Insurance Co (2010-2014): Java backend, internal tools.
+Hackathons: None.
+Certifications:
+  - Oracle Java SE 8 (2016)
+GitHub: 3 commits last month, minor bug patches.
+No recent learning activity.`,
+};
+
+function loadScorerSample(key) {
+  document.getElementById('scorerInput').value = SCORER_SAMPLES[key] || '';
+}
+
+async function scoreOne() {
+  const text = document.getElementById('scorerInput').value.trim();
+  if (!text) { alert('Please paste a candidate profile first.'); return; }
+  const btn = document.getElementById('scorerBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Running 3 agents…';
+  document.getElementById('scorerResult').style.display = 'none';
+  document.getElementById('scorerPlaceholder').style.display = 'block';
+  document.getElementById('scorerPlaceholder').textContent = '⏳ Agent 1 → Agent 2 → Agent 3…';
+  try {
+    const r = await fetch('/demo/score-one', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({profile_text: text}),
+    });
+    if (!r.ok) throw new Error(`Server error ${r.status}`);
+    const d = await r.json();
+    renderScorerResult(d);
+  } catch(e) {
+    document.getElementById('scorerPlaceholder').textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⚡ Score This Candidate (3 Agents)';
+  }
+}
+
+function renderScorerResult(d) {
+  const sc = d.adaptability_score || 0;
+  const ms = d.match_score || 0;
+  const scColor = sc >= 70 ? '#22c55e' : sc >= 55 ? '#f59e0b' : '#94a3b8';
+  const circumference = 213.6;
+  const offset = circumference - (sc / 100) * circumference;
+  const fill = document.getElementById('sRingFill');
+  fill.style.strokeDashoffset = offset;
+  fill.style.stroke = scColor;
+  document.getElementById('sRingNum').textContent = sc;
+  document.getElementById('sRingNum').setAttribute('fill', scColor);
+  // Name from first line of profile
+  const firstLine = d.candidate_name || document.getElementById('scorerInput').value.split('\n')[0].substring(0,40);
+  document.getElementById('sName').textContent = firstLine;
+  document.getElementById('sTier').textContent = `Adaptability: ${d.adaptability_tier || '—'}`;
+  const tierColors = {PRIORITY:'#22c55e',STANDARD:'#6c63ff',NURTURE:'#f59e0b',ARCHIVE:'#94a3b8'};
+  const ot = d.outreach_tier || 'ARCHIVE';
+  document.getElementById('sAction').textContent = d.velocityhire_action || '—';
+  document.getElementById('sAction').style.color = tierColors[ot] || '#94a3b8';
+  // Dim bars
+  const bd = d.score_breakdown || {};
+  const dims = [
+    {id:'sDim0',vid:'sDimV0', key:'hackathons',     max:40, color:'#6c63ff'},
+    {id:'sDim1',vid:'sDimV1', key:'skills',         max:25, color:'#f5a623'},
+    {id:'sDim2',vid:'sDimV2', key:'certifications', max:20, color:'#3b82f6'},
+    {id:'sDim3',vid:'sDimV3', key:'recency',        max:15, color:'#22c55e'},
+  ];
+  dims.forEach(dim => {
+    const val = (bd[dim.key] || {}).score || 0;
+    document.getElementById(dim.id).style.width = `${Math.round((val/dim.max)*100)}%`;
+    document.getElementById(dim.vid).textContent = `${val}/${dim.max}`;
+  });
+  document.getElementById('sDimMatch').style.width = `${ms}%`;
+  document.getElementById('sDimMatchV').textContent = `${ms}/100`;
+  // Outreach tier badge
+  const tierLabels = {PRIORITY:'🏆 PRIORITY — Fast-track to interview',STANDARD:'⭐ STANDARD — Interview pipeline',NURTURE:'✅ NURTURE — Keep warm',ARCHIVE:'📋 ARCHIVE — Hold for now'};
+  document.getElementById('sOutreachTier').innerHTML =
+    `<span style="font-weight:700;color:${tierColors[ot]||'#94a3b8'}">${tierLabels[ot]||ot}</span>
+     <span style="color:var(--faint);font-size:.75rem;margin-left:8px">Job Match: ${ms}/100</span>`;
+  // LinkedIn message
+  if (d.linkedin_message) {
+    const li = document.getElementById('sLinkedin');
+    li.style.display = 'block';
+    li.innerHTML = `<span style="font-size:.7rem;color:var(--primary);font-weight:600;display:block;margin-bottom:4px">📨 Generated LinkedIn Message</span>${d.linkedin_message}`;
+  }
+  document.getElementById('scorerPlaceholder').style.display = 'none';
+  document.getElementById('scorerResult').style.display = 'block';
+}
+
 /* ── ATS integration test ───────────────────────────────────────── */
 const ATS_COLORS={greenhouse:'#3db639',lever:'#006dff',bamboohr:'#74a318'};
 const ATS_TIER_COLOR={PRIORITY:'#22c55e',STANDARD:'#6c63ff',NURTURE:'#f59e0b',ARCHIVE:'#94a3b8'};
@@ -1246,6 +1488,123 @@ async def get_results(run_id: str):
         raise HTTPException(status_code=404, detail="Run not found")
     run = _runs[run_id]
     return {"status": run["status"], "results": run.get("results", [])}
+
+
+class ScoreOneRequest(BaseModel):
+    profile_text: str
+
+
+@app.post("/demo/score-one")
+async def score_one(req: ScoreOneRequest):
+    """
+    Run a single candidate profile through all 3 agents and return
+    a combined result — used by the live scorer UI panel.
+    """
+    if not req.profile_text.strip():
+        raise HTTPException(status_code=400, detail="profile_text cannot be empty")
+
+    profile = req.profile_text.strip()
+    # Extract candidate name from first line
+    first_line = profile.split("\n")[0].strip()
+    for prefix in ("Name:", "Candidate:", "Profile:"):
+        if first_line.lower().startswith(prefix.lower()):
+            first_line = first_line[len(prefix):].strip()
+    candidate_name = first_line.split(" — ")[0][:80] if " — " in first_line else first_line[:80]
+
+    try:
+        # Agent 1
+        try:
+            a1 = _call_with_timeout(analyze_profile, _AGENT_TIMEOUT_SECS, profile)
+        except concurrent.futures.TimeoutError:
+            a1 = {"adaptability_score": 50, "tier": "Standard",
+                  "recommend_interview": False, "score_breakdown": {}, "reasoning": "Timeout"}
+
+        adapt_score = int(a1.get("adaptability_score") or 50)
+        adapt_tier  = a1.get("tier") or "Standard"
+
+        # Agent 2
+        try:
+            a2 = _call_with_timeout(
+                match_candidate, _AGENT_TIMEOUT_SECS,
+                job_title=DEMO_JOB["job_title"],
+                job_description=DEMO_JOB["job_description"],
+                required_skills=DEMO_JOB["required_skills"],
+                candidate_name=candidate_name,
+                candidate_profile=profile,
+                adaptability_score=adapt_score,
+                adaptability_tier=adapt_tier,
+            )
+        except concurrent.futures.TimeoutError:
+            weighted = round((adapt_score / 100) * 60, 1)
+            a2 = {"total_match_score": int(weighted + 10), "match_tier": "Unknown",
+                  "recommend_interview": adapt_score >= 70, "reasoning": "Timeout",
+                  "score_breakdown": {"role_fit": {"matched_skills": []},
+                                      "culture_fit": {"startup_experience": False}}}
+
+        match_score    = int(a2.get("total_match_score") or 0)
+        match_tier     = a2.get("match_tier") or "Unknown"
+        breakdown      = a2.get("score_breakdown") or {}
+        matched_skills = breakdown.get("role_fit", {}).get("matched_skills", []) or []
+        startup_exp    = breakdown.get("culture_fit", {}).get("startup_experience", False)
+        recommend      = bool(a2.get("recommend_interview"))
+
+        # Agent 3
+        try:
+            a3 = _call_with_timeout(
+                generate_outreach, _AGENT_TIMEOUT_SECS,
+                candidate_name=candidate_name,
+                candidate_profile=profile,
+                job_title=DEMO_JOB["job_title"],
+                company_name=DEMO_JOB["company_name"],
+                recruiter_name=DEMO_JOB["recruiter_name"],
+                total_match_score=match_score,
+                match_tier=match_tier,
+                adaptability_score=adapt_score,
+                adaptability_tier=adapt_tier,
+                matched_skills=matched_skills,
+                startup_experience=startup_exp,
+                recommend_interview=recommend,
+                reasoning=a2.get("reasoning", ""),
+            )
+        except concurrent.futures.TimeoutError:
+            tier = ("PRIORITY" if match_score >= 85 else "STANDARD" if match_score >= 70
+                    else "NURTURE" if match_score >= 55 else "ARCHIVE")
+            a3 = {"outreach_tier": tier, "tone": "professional", "key_highlights": [],
+                  "campaign": {"linkedin_message": f"Hi {candidate_name.split()[0]}, your profile caught my eye!",
+                               "email": {"subject": "", "body": ""}, "followup": {}, "recruiter_note": ""}}
+
+        outreach_tier = a3.get("outreach_tier") or "ARCHIVE"
+        campaign      = a3.get("campaign") or {}
+
+        if DB_ENABLED:
+            try:
+                save_candidate_score(profile, a1, candidate_name=candidate_name, company_id="demo")
+            except Exception:
+                pass
+
+        return JSONResponse(content={
+            "candidate_name":     candidate_name,
+            "adaptability_score": adapt_score,
+            "adaptability_tier":  adapt_tier,
+            "match_score":        match_score,
+            "match_tier":         match_tier,
+            "outreach_tier":      outreach_tier,
+            "recommend":          recommend,
+            "score_breakdown":    a1.get("score_breakdown", {}),
+            "key_highlights":     a3.get("key_highlights", []),
+            "linkedin_message":   campaign.get("linkedin_message", ""),
+            "reasoning":          a1.get("reasoning", ""),
+            "velocityhire_action": (
+                "🚀 Fast-track to interview" if match_score >= 85 else
+                "✅ Add to interview pipeline" if recommend else
+                "📋 Add to nurture pipeline" if match_score >= 55 else
+                "🗄️ Archive for now"
+            ),
+        })
+
+    except Exception as exc:
+        logger.error("score_one failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ── ATS integration proxy routes ──────────────────────────────────────────────
