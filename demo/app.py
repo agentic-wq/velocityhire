@@ -417,7 +417,7 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                         "adaptability_score": adapt_score,
                         "outreach_tier":      outreach_tier,
                         "tone":               a3.get("tone", ""),
-                        "key_highlights":     json.dumps(a3.get("key_highlights", [])),
+                        "key_highlights":     a3.get("key_highlights", []),
                         "linkedin_message":   campaign.get("linkedin_message", ""),
                         "email_subject":      campaign.get("email", {}).get("subject", ""),
                         "email_body":         campaign.get("email", {}).get("body", ""),

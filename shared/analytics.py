@@ -42,27 +42,31 @@ def _cid_clause(company_id: Optional[str]) -> tuple:
 
 
 def _fetch_all(engine, meta, table_name: str, company_id: Optional[str] = None) -> List[Dict]:
-    """Fetch all rows from a table, optionally scoped to a company."""
+    """Fetch all rows from a table, optionally scoped to a company.
+
+    Uses row._mapping (actual DB column names) rather than positional zip
+    against metadata columns — this avoids mis-mapping when company_id was
+    added via ALTER TABLE (appended at end) while metadata has it at position 3.
+    """
     try:
         from sqlalchemy import text
         clause, params = _cid_clause(company_id)
         with engine.connect() as conn:
-            rows = conn.execute(
+            result_proxy = conn.execute(
                 text(f"SELECT * FROM {table_name} WHERE {clause} ORDER BY id DESC"),
                 params,
-            ).fetchall()
-        tbl = meta.tables[table_name]
-        cols = [c.name for c in tbl.columns]
-        result = []
-        for row in rows:
-            d = dict(zip(cols, row))
-            for key in ("score_breakdown", "matched_skills", "key_highlights"):
-                if key in d and d[key]:
-                    try:
-                        d[key] = json.loads(d[key])
-                    except Exception:
-                        pass
-            result.append(d)
+            )
+            result = []
+            for row in result_proxy:
+                # Use actual DB column names via _mapping, not metadata order
+                d = dict(row._mapping)
+                for key in ("score_breakdown", "matched_skills", "key_highlights"):
+                    if key in d and d[key]:
+                        try:
+                            d[key] = json.loads(d[key])
+                        except Exception:
+                            pass
+                result.append(d)
         return result
     except Exception as exc:
         logger.error("_fetch_all(%s) failed: %s", table_name, exc)

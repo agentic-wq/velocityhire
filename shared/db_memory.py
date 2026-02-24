@@ -377,14 +377,31 @@ def save_outreach(
     result: dict,
     company_id: str = DEFAULT_COMPANY,
 ) -> Optional[int]:
-    """Persist an Agent 3 outreach campaign. Returns inserted row id."""
+    """Persist an Agent 3 outreach campaign. Returns inserted row id.
+
+    Accepts two calling conventions:
+      (a) Nested — result["campaign"] contains linkedin_message, email, followup, etc.
+          (used by agent3/app.py directly)
+      (b) Flat   — result contains linkedin_message, email_subject, email_body, etc.
+          (used by demo/app.py _run_pipeline)
+    """
     if not SQLALCHEMY_AVAILABLE:
         return None
     try:
         engine = _get_engine()
         if engine is None:
             return None
-        camp = result.get("campaign", {})
+        # Support both nested ("campaign" sub-dict) and flat key calling styles
+        camp = result.get("campaign") or {}
+        linkedin_message = camp.get("linkedin_message") or result.get("linkedin_message", "")
+        email_sub        = (camp.get("email") or {}).get("subject") or result.get("email_subject", "")
+        email_bod        = (camp.get("email") or {}).get("body")    or result.get("email_body", "")
+        fup_sub          = (camp.get("followup") or {}).get("subject") or result.get("followup_subject", "")
+        fup_bod          = (camp.get("followup") or {}).get("body")    or result.get("followup_body", "")
+        rec_note         = camp.get("recruiter_note") or result.get("recruiter_note", "")
+        # key_highlights may arrive as list or as pre-serialised JSON string
+        kh = result.get("key_highlights", [])
+        key_highlights_json = kh if isinstance(kh, str) else json.dumps(kh)
         tbl  = _meta.tables["outreach_campaigns"]
         with engine.begin() as conn:
             res = conn.execute(tbl.insert().values(
@@ -398,13 +415,13 @@ def save_outreach(
                 adaptability_score= result.get("adaptability_score", 0),
                 outreach_tier     = result.get("outreach_tier", ""),
                 tone              = result.get("tone", ""),
-                key_highlights    = json.dumps(result.get("key_highlights", [])),
-                linkedin_message  = camp.get("linkedin_message", ""),
-                email_subject     = camp.get("email", {}).get("subject", ""),
-                email_body        = camp.get("email", {}).get("body", ""),
-                followup_subject  = camp.get("followup", {}).get("subject", ""),
-                followup_body     = camp.get("followup", {}).get("body", ""),
-                recruiter_note    = camp.get("recruiter_note", ""),
+                key_highlights    = key_highlights_json,
+                linkedin_message  = linkedin_message,
+                email_subject     = email_sub,
+                email_body        = email_bod,
+                followup_subject  = fup_sub,
+                followup_body     = fup_bod,
+                recruiter_note    = rec_note,
             ))
             row_id = res.lastrowid
         logger.info("DB [outreach_campaigns] company=%s id=%s candidate=%s tier=%s",
