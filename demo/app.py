@@ -243,6 +243,11 @@ DEMO_CANDIDATES: List[Dict] = [
 # ── In-memory run store ───────────────────────────────────────────────────────
 _runs: Dict[str, Any] = {}
 
+# ── Per-candidate result cache (keyed by name+job) — makes re-runs near-instant ──
+_PIPELINE_CACHE: Dict[str, Dict] = {}
+_CACHE_REPLAY_DELAY = 0.35  # seconds per stage during cached replay (keeps animation alive)
+
+import time as _time
 
 _AGENT_TIMEOUT_SECS = 30   # per-agent call timeout; prevents demo hang
 
@@ -270,6 +275,30 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
         run["current_idx"]       = idx
 
         try:
+            _cache_key = f"{name}::{DEMO_JOB['job_title']}"
+
+            # ── Cache replay — makes re-runs near-instant while keeping animation ──
+            if _cache_key in _PIPELINE_CACHE:
+                logger.info("[%s] Cache hit for %s — replaying at %ss/stage",
+                            run_id, name, _CACHE_REPLAY_DELAY)
+                _cached = _PIPELINE_CACHE[_cache_key]
+                for _stage in ("agent1", "agent2", "agent3"):
+                    run["candidates"][idx]["stage"] = _stage
+                    _time.sleep(_CACHE_REPLAY_DELAY)
+                # Restore all scores immediately so polls see them
+                _cr = _cached["result"]
+                run["candidates"][idx]["adaptability_score"] = _cr["adaptability_score"]
+                run["candidates"][idx]["adaptability_tier"]  = _cr["adaptability_tier"]
+                run["candidates"][idx]["match_score"]        = _cr["match_score"]
+                run["candidates"][idx]["match_tier"]         = _cr["match_tier"]
+                run["candidates"][idx]["outreach_tier"]      = _cr["outreach_tier"]
+                run["candidates"][idx]["stage"]              = "done"
+                results.append({**_cr, "name": name, "emoji": cand["emoji"]})
+                logger.info("[%s] ✅ Cached → %s  adapt=%d match=%d tier=%s",
+                            run_id, name, _cr["adaptability_score"],
+                            _cr["match_score"], _cr["outreach_tier"])
+                continue
+
             # ── Agent 1: Profile Analysis ────────────────────────────────────
             run["candidates"][idx]["stage"] = "agent1"
             logger.info("[%s] Agent 1 → %s", run_id, name)
@@ -399,7 +428,7 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
             except Exception as e:
                 logger.warning("save_outreach non-fatal: %s", e)
 
-            results.append({
+            _result_entry = {
                 "name":               name,
                 "emoji":              cand["emoji"],
                 "adaptability_score": adapt_score,
@@ -415,7 +444,10 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                 "followup_subject":   campaign.get("followup", {}).get("subject", ""),
                 "followup_body":      campaign.get("followup", {}).get("body", ""),
                 "recruiter_note":     campaign.get("recruiter_note", ""),
-            })
+            }
+            # Store in cache for instant re-runs
+            _PIPELINE_CACHE[_cache_key] = {"result": _result_entry}
+            results.append(_result_entry)
 
             logger.info("[%s] ✅ Done → %s  adapt=%d match=%d tier=%s",
                         run_id, name, adapt_score, match_score, outreach_tier)
@@ -661,6 +693,41 @@ tr:hover td{background:rgba(108,99,255,.04)}
 .ats-log-header{background:var(--surface2);font-weight:600;font-size:.72rem;
   color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 
+/* ── Comparison view ── */
+.comparison-outer{display:grid;grid-template-columns:1fr 56px 1fr;background:var(--surface);
+  border-radius:16px;border:1px solid var(--border);overflow:hidden;margin-bottom:32px}
+.comp-col{min-width:0}
+.comp-header{padding:13px 18px;text-align:center;font-size:.75rem;font-weight:700;
+  text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);line-height:1.5}
+.comp-header.trad{background:rgba(100,116,139,.1);color:#94a3b8}
+.comp-header.vh{background:rgba(108,99,255,.1);color:#a78bfa}
+.comp-arrow-col{background:var(--surface2);border-left:1px solid var(--border);
+  border-right:1px solid var(--border);display:flex;flex-direction:column}
+.comp-arrow-header{padding:13px 6px;border-bottom:1px solid var(--border);
+  font-size:.65rem;text-align:center;color:var(--faint);line-height:1.5}
+.comp-row{padding:11px 16px;border-bottom:1px solid rgba(42,42,74,.4);
+  display:flex;align-items:center;gap:10px;font-size:.83rem;transition:background .2s}
+.comp-row:last-child{border-bottom:none}
+.comp-row:hover{background:rgba(108,99,255,.04)}
+.comp-rank{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0}
+.comp-row.trad .comp-rank{background:rgba(100,116,139,.18);color:#94a3b8}
+.comp-row.vh .comp-rank{background:rgba(108,99,255,.18);color:#a78bfa}
+.comp-row.vh-top .comp-rank{background:rgba(34,197,94,.18);color:#22c55e}
+.comp-row.vh-last .comp-rank{background:rgba(100,116,139,.14);color:#64748b}
+.comp-exp{font-size:.69rem;color:var(--faint);margin-top:1px}
+.comp-arrow-row{padding:11px 6px;border-bottom:1px solid rgba(42,42,74,.4);
+  display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.82rem}
+.comp-arrow-row:last-child{border-bottom:none}
+.arr-up{color:#22c55e}.arr-dn{color:#ef4444}.arr-eq{color:var(--faint)}
+.comp-callout{background:linear-gradient(135deg,rgba(108,99,255,.08),rgba(34,197,94,.06));
+  border:1px solid rgba(108,99,255,.2);border-radius:12px;padding:16px 20px;
+  display:flex;align-items:flex-start;gap:14px;margin-bottom:32px}
+.comp-callout-icon{font-size:1.8rem;flex-shrink:0;margin-top:2px}
+.comp-callout-text{font-size:.82rem;color:var(--text);line-height:1.65}
+.comp-callout-hl{color:#22c55e;font-weight:700}
+.comp-callout-dim{color:#ef4444;font-weight:700}
+
 /* ── Utils ── */
 .hidden{display:none!important}
 .spinner{display:inline-block;width:14px;height:14px;
@@ -670,6 +737,37 @@ tr:hover td{background:rgba(108,99,255,.04)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ── Mobile responsive ── */
+@media(max-width:720px){
+  .hero{padding:36px 16px 32px}
+  .logo{font-size:2rem}
+  .tagline{font-size:.9rem}
+  .run-btn{padding:14px 36px;font-size:.95rem}
+  .container{padding:24px 14px}
+  .pipe-flow{flex-direction:column;align-items:flex-start;gap:8px;padding:16px}
+  .pipe-divider{width:100%;height:1px;margin:8px 0}
+  .pipe-meta{padding:0 8px}
+  .comparison-outer{grid-template-columns:1fr 38px 1fr}
+  .comp-row{padding:9px 10px;gap:7px;font-size:.78rem}
+  .comp-header{padding:10px 8px;font-size:.7rem}
+  .comp-arrow-row{padding:9px 3px;font-size:.75rem}
+  .comp-arrow-header{padding:10px 3px;font-size:.6rem}
+  .ats-grid{grid-template-columns:1fr}
+  .analytics-grid{grid-template-columns:1fr}
+  .insights-grid{grid-template-columns:1fr}
+  .outreach-grid{grid-template-columns:1fr}
+  .comp-callout{flex-direction:column;gap:10px}
+  .comp-callout-icon{font-size:1.4rem}
+}
+@media(max-width:440px){
+  .comparison-outer{grid-template-columns:1fr}
+  .comp-arrow-col{display:none}
+  .comp-row{padding:10px 12px}
+  .comp-header{padding:12px}
+  .badges{gap:6px}
+  .badge{font-size:.72rem;padding:3px 10px}
+}
 </style>
 </head>
 <body>
@@ -782,6 +880,17 @@ tr:hover td{background:rgba(108,99,255,.04)}
 
   <!-- Results section (hidden until done) -->
   <div id="resultsSection" class="hidden">
+
+    <!-- VelocityHire vs Traditional ATS comparison -->
+    <div class="section-title" id="compTitle" style="display:none">
+      <span class="dot" style="background:#ef4444"></span>
+      The Ranking Flip
+      <span style="font-size:.78rem;color:var(--muted);font-weight:400">
+        — traditional ATS (experience) vs VelocityHire (learning velocity)
+      </span>
+    </div>
+    <div id="compOuter" class="comparison-outer" style="display:none"></div>
+    <div id="compCallout" class="comp-callout" style="display:none"></div>
 
     <!-- Ranked results table -->
     <div class="section-title">
@@ -1128,11 +1237,97 @@ function updateCards(data){
   });
 }
 
+/* ── Traditional ATS baseline (rank by years of experience) ────── */
+const TRAD_DATA = {
+  "Marcus Rivera":  {trad:4, exp:"3 yr exp · AI startup"},
+  "Priya Sharma":   {trad:2, exp:"5 yr exp · ML/DeepMind"},
+  "Alex Chen":      {trad:3, exp:"4 yr exp · Full-Stack"},
+  "Jordan Kim":     {trad:1, exp:"8 yr exp · Java/Banking"},
+  "Elena Voronova": {trad:5, exp:"6 mo exp · Bootcamp grad"},
+};
+
+function renderComparison(sorted) {
+  // Traditional ATS: sort by years of experience (TRAD_DATA.trad)
+  const tradSorted = [...sorted].sort((a,b)=>(TRAD_DATA[a.name]?.trad||3)-(TRAD_DATA[b.name]?.trad||3));
+
+  const tradRows = tradSorted.map((r,i)=>{
+    const td = TRAD_DATA[r.name]||{};
+    return `<div class="comp-row trad">
+      <div class="comp-rank">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.emoji||'👤'} ${r.name}</div>
+        <div class="comp-exp">${td.exp||''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const vhRows = sorted.map((r,i)=>{
+    const sc = r.match_score||0;
+    const scColor = sc>=70?'#22c55e':sc>=55?'#f59e0b':'#94a3b8';
+    const cls = i===0?'vh vh-top':i===sorted.length-1?'vh vh-last':'vh';
+    return `<div class="comp-row ${cls}">
+      <div class="comp-rank">${i+1}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.emoji||'👤'} ${r.name}</div>
+        <div class="comp-exp" style="color:${scColor}">${sc}/100 · ${r.outreach_tier||''}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Arrow column: rank delta for each VelocityHire position
+  const arrowRows = sorted.map((r,i)=>{
+    const tradRank = TRAD_DATA[r.name]?.trad||i+1;
+    const delta = tradRank - (i+1);
+    let html;
+    if(delta>0)      html=`<span class="arr-up">↑${delta}</span>`;
+    else if(delta<0) html=`<span class="arr-dn">↓${Math.abs(delta)}</span>`;
+    else             html=`<span class="arr-eq">→</span>`;
+    return `<div class="comp-arrow-row">${html}</div>`;
+  }).join('');
+
+  document.getElementById('compOuter').innerHTML = `
+    <div class="comp-col">
+      <div class="comp-header trad">❌ Traditional ATS<br>
+        <span style="font-weight:400;font-size:.68rem">Ranked by years of experience</span></div>
+      ${tradRows}
+    </div>
+    <div class="comp-arrow-col">
+      <div class="comp-arrow-header">Rank<br>shift</div>
+      ${arrowRows}
+    </div>
+    <div class="comp-col">
+      <div class="comp-header vh">✅ VelocityHire AI<br>
+        <span style="font-weight:400;font-size:.68rem">Ranked by learning velocity</span></div>
+      ${vhRows}
+    </div>`;
+
+  // Callout
+  const elenaVH = sorted.findIndex(r=>r.name==='Elena Voronova')+1;
+  const jordanVH = sorted.findIndex(r=>r.name==='Jordan Kim')+1;
+  document.getElementById('compCallout').innerHTML = `
+    <div class="comp-callout-icon">💡</div>
+    <div class="comp-callout-text">
+      <strong>The key insight:</strong>
+      <span class="comp-callout-hl"> Elena Voronova</span> — bootcamp grad,
+      <span class="comp-callout-hl">6 months experience</span> — ranks
+      <span class="comp-callout-hl">#${elenaVH} by learning velocity.</span>
+      <span class="comp-callout-dim"> Jordan Kim</span> — <span class="comp-callout-dim">8 years Java experience</span> —
+      ranks <span class="comp-callout-dim">#${jordanVH}.</span>
+      Traditional ATS shortlists Jordan and auto-rejects Elena.
+      VelocityHire sees who is <em>actually learning the fastest</em> — and that is the only signal that matters for AI-first hiring.
+    </div>`;
+
+  document.getElementById('compTitle').style.display='flex';
+  document.getElementById('compOuter').style.display='grid';
+  document.getElementById('compCallout').style.display='flex';
+}
+
 /* ── Show results ───────────────────────────────────────────────── */
 function showResults(results){
   if(!results||!results.length) return;
   const sorted=[...results].sort((a,b)=>(b.match_score||0)-(a.match_score||0));
   window._outreachData=sorted.filter(r=>['PRIORITY','STANDARD'].includes(r.outreach_tier));
+  renderComparison(sorted);
 
   /* table */
   const tierCls={PRIORITY:'tP',STANDARD:'tS',NURTURE:'tN',ARCHIVE:'tA'};
