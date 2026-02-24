@@ -665,6 +665,38 @@ tr:hover td{background:rgba(108,99,255,.04)}
 <!-- ── Main ───────────────────────────────────────────────────────── -->
 <div class="container">
 
+  <!-- Innovation panel -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-bottom:32px">
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #6c63ff;
+                border-radius:14px;padding:20px">
+      <div style="font-size:1.5rem;margin-bottom:8px">🎯</div>
+      <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">Learning Velocity, Not Credentials</div>
+      <div style="font-size:.78rem;color:var(--muted);line-height:1.6">
+        A bootcamp grad who won 2 hackathons last month and shipped an LLM tool used by 500 people
+        scores <strong style="color:#22c55e">higher</strong> than a 10-year Java developer with no recent activity.
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #22c55e;
+                border-radius:14px;padding:20px">
+      <div style="font-size:1.5rem;margin-bottom:8px">🤖</div>
+      <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">3 LangGraph Agents in Sequence</div>
+      <div style="font-size:.78rem;color:var(--muted);line-height:1.6">
+        Profile Analyzer → Job Matcher → Outreach Coordinator. Each is a separate
+        <strong style="color:#a78bfa">StateGraph</strong> with typed state, conditional edges, and
+        shared SQLite memory across all agents.
+      </div>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-left:3px solid #f59e0b;
+                border-radius:14px;padding:20px">
+      <div style="font-size:1.5rem;margin-bottom:8px">🏢</div>
+      <div style="font-weight:700;font-size:.92rem;margin-bottom:6px">Enterprise-Ready from Day One</div>
+      <div style="font-size:.78rem;color:var(--muted);line-height:1.6">
+        Multi-tenant data isolation, ATS webhooks (Greenhouse · Lever · BambooHR),
+        hiring outcome tracking, and predictive analytics — all included.
+      </div>
+    </div>
+  </div>
+
   <!-- Pipeline diagram -->
   <div class="pipe-flow">
     <div class="pipe-step">
