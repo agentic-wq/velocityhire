@@ -107,9 +107,13 @@ _ats_demo_log: list = []
 
 # ── App ───────────────────────────────────────────────────────────────────────
 app = FastAPI(title="VelocityHire Demo", version="5.0.0")
+_cors_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "*").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],
+    allow_origins=_cors_origins,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
+    allow_credentials=False,
 )
 
 # ── Demo data ─────────────────────────────────────────────────────────────────
@@ -1133,6 +1137,14 @@ const CANDIDATES=[
 let currentRunId=null, pollInterval=null;
 let tierChartInst=null, scoreChartInst=null;
 
+/* ── Security: HTML escape helper to prevent XSS ─────────────────── */
+function escHtml(s){
+  if(!s) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#x27;');
+}
+
 /* ── Card init ──────────────────────────────────────────────────── */
 function initCards(){
   document.getElementById('candidatesGrid').innerHTML=
@@ -1366,7 +1378,7 @@ function showResults(results){
           <button class="oc-tab" onclick="switchTab(${ri},'followup',this)">Follow-up</button>
           <button class="oc-tab" onclick="switchTab(${ri},'note',this)">ATS Note</button>
         </div>
-        <div class="oc-body" id="oc-body-${ri}">${r.linkedin_message||'(no message)'}</div>
+        <div class="oc-body" id="oc-body-${ri}">${escHtml(r.linkedin_message)||'(no message)'}</div>
       </div>`).join('');
 
   document.getElementById('resultsSection').classList.remove('hidden');
@@ -1557,7 +1569,7 @@ function renderScorerResult(d) {
   if (d.linkedin_message) {
     const li = document.getElementById('sLinkedin');
     li.style.display = 'block';
-    li.innerHTML = `<span style="font-size:.7rem;color:var(--primary);font-weight:600;display:block;margin-bottom:4px">📨 Generated LinkedIn Message</span>${d.linkedin_message}`;
+    li.innerHTML = `<span style="font-size:.7rem;color:var(--primary);font-weight:600;display:block;margin-bottom:4px">📨 Generated LinkedIn Message</span>${escHtml(d.linkedin_message)}`;
   }
   document.getElementById('scorerPlaceholder').style.display = 'none';
   document.getElementById('scorerResult').style.display = 'block';
@@ -1689,8 +1701,25 @@ async def get_results(run_id: str):
     return {"status": run["status"], "results": run.get("results", [])}
 
 
+import re as _re
+
+_HTML_TAG_RE = _re.compile(r'<[^>]{0,200}>')
+
+def _strip_html(text: str) -> str:
+    """Remove HTML tags to prevent stored/reflected XSS from profile input."""
+    return _HTML_TAG_RE.sub('', text)
+
+
 class ScoreOneRequest(BaseModel):
     profile_text: str
+
+    from pydantic import validator
+
+    @validator("profile_text")
+    def validate_profile_text(cls, v: str) -> str:  # noqa: N805
+        if len(v) > 50_000:
+            raise ValueError("profile_text exceeds maximum allowed length of 50,000 characters")
+        return v
 
 
 @app.post("/demo/score-one")
@@ -1702,7 +1731,8 @@ async def score_one(req: ScoreOneRequest):
     if not req.profile_text.strip():
         raise HTTPException(status_code=400, detail="profile_text cannot be empty")
 
-    profile = req.profile_text.strip()
+    # Sanitize: strip any HTML tags before processing (XSS prevention)
+    profile = _strip_html(req.profile_text.strip())
     # Extract candidate name from first line
     first_line = profile.split("\n")[0].strip()
     for prefix in ("Name:", "Candidate:", "Profile:"):
