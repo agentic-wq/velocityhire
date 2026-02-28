@@ -2,6 +2,8 @@
 
 > **Complete.dev Hackathon 2026** · Built with LangGraph · Multi-agent · Multi-tenant
 
+[![CI / Deploy](https://github.com/agentic-wq/velocityhire/actions/workflows/deploy.yml/badge.svg?branch=master)](https://github.com/agentic-wq/velocityhire/actions/workflows/deploy.yml)
+
 VelocityHire identifies candidates with the highest **learning velocity** — not just years of experience.
 Three LangGraph agents collaborate to score adaptability, match candidates to roles, and generate
 personalised outreach campaigns automatically.
