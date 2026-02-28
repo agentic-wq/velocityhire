@@ -8,9 +8,9 @@ Routes:
   GET  /health    → health check
 """
 
-import json
+from profile_fetcher import fetch_linkedin_profile
+from agent_1 import analyze_profile
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -37,8 +37,6 @@ logger = logging.getLogger("agent1")
 # ── import agent ──────────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))   # shared/ package
-from agent_1 import analyze_profile
-from profile_fetcher import fetch_linkedin_profile
 
 # ── Phase 4: shared memory (non-fatal if sqlalchemy not installed) ────────────
 try:
@@ -900,14 +898,14 @@ async def record_outcome(
         raise HTTPException(status_code=400, detail=f"outcome must be one of {valid}")
     try:
         row_id = save_outcome(
-            candidate_name     = req.candidate_name,
-            outcome            = req.outcome,
-            job_title          = req.job_title or "",
-            adaptability_score = req.adaptability_score,
-            match_score        = req.match_score,
-            time_to_hire_days  = req.time_to_hire_days,
-            notes              = req.notes or "",
-            company_id         = (x_company_id or "demo").strip(),
+            candidate_name=req.candidate_name,
+            outcome=req.outcome,
+            job_title=req.job_title or "",
+            adaptability_score=req.adaptability_score,
+            match_score=req.match_score,
+            time_to_hire_days=req.time_to_hire_days,
+            notes=req.notes or "",
+            company_id=(x_company_id or "demo").strip(),
         )
         return JSONResponse(content={"status": "recorded", "outcome": req.outcome, "row_id": row_id})
     except Exception as e:
@@ -955,9 +953,9 @@ def _process_ats_candidate(
     company_id: str = "demo",
 ) -> dict:
     """Run Agent 1 on a normalised ATS candidate and persist the result."""
-    profile_text   = normalised["profile_text"]
+    profile_text = normalised["profile_text"]
     candidate_name = normalised["candidate_name"]
-    job_title      = normalised.get("job_title", "Unknown Role")
+    job_title = normalised.get("job_title", "Unknown Role")
 
     result = analyze_profile(profile_text)
 
@@ -970,15 +968,15 @@ def _process_ats_candidate(
         logger.warning("ATS DB persist failed (non-fatal): %s", exc)
 
     event = {
-        "timestamp":         __import__("datetime").datetime.utcnow().isoformat() + "Z",
-        "provider":          provider,
-        "candidate_name":    candidate_name,
-        "job_title":         job_title,
-        "company_id":        company_id,
-        "adaptability_score":result.get("adaptability_score"),
-        "tier":              result.get("tier"),
-        "recommend_interview":result.get("recommend_interview"),
-        "source":            normalised.get("source", provider),
+        "timestamp": __import__("datetime").datetime.utcnow().isoformat() + "Z",
+        "provider": provider,
+        "candidate_name": candidate_name,
+        "job_title": job_title,
+        "company_id": company_id,
+        "adaptability_score": result.get("adaptability_score"),
+        "tier": result.get("tier"),
+        "recommend_interview": result.get("recommend_interview"),
+        "source": normalised.get("source", provider),
     }
     _ats_log.insert(0, event)
     if len(_ats_log) > 50:
@@ -989,16 +987,16 @@ def _process_ats_candidate(
                 result.get("adaptability_score"), result.get("tier"))
 
     return {
-        "status":            "scored",
-        "provider":          provider,
-        "candidate_name":    candidate_name,
-        "job_title":         job_title,
-        "adaptability_score":result.get("adaptability_score"),
-        "tier":              result.get("tier"),
-        "recommend_interview":result.get("recommend_interview"),
-        "reasoning":         result.get("reasoning", ""),
-        "score_breakdown":   result.get("score_breakdown", {}),
-        "velocityhire_action":(
+        "status": "scored",
+        "provider": provider,
+        "candidate_name": candidate_name,
+        "job_title": job_title,
+        "adaptability_score": result.get("adaptability_score"),
+        "tier": result.get("tier"),
+        "recommend_interview": result.get("recommend_interview"),
+        "reasoning": result.get("reasoning", ""),
+        "score_breakdown": result.get("score_breakdown", {}),
+        "velocityhire_action": (
             "🚀 Fast-track to interview" if result.get("adaptability_score", 0) >= 85 else
             "✅ Add to interview pipeline" if result.get("recommend_interview") else
             "📋 Add to nurture pipeline"

@@ -18,7 +18,6 @@ Each normaliser returns a dict with keys:
   raw             dict  (original payload, for audit)
 """
 
-import json
 import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
@@ -34,8 +33,8 @@ MOCK_PAYLOADS: Dict[str, Dict] = {
             "candidate": {
                 "id": 88412,
                 "first_name": "Aisha",
-                "last_name":  "Nakamura",
-                "headline":   "Staff ML Engineer · ex-Stripe · LangGraph contributor",
+                "last_name": "Nakamura",
+                "headline": "Staff ML Engineer · ex-Stripe · LangGraph contributor",
                 "emails": [{"value": "aisha.nakamura@example.com", "type": "work"}],
                 "notes": (
                     "Aisha Nakamura — Staff ML Engineer\n"
@@ -59,8 +58,8 @@ MOCK_PAYLOADS: Dict[str, Dict] = {
                 "applications": [
                     {"job": {"id": 5001, "name": "Senior AI Engineer"}}
                 ],
-                "tags":    ["ml", "langgraph", "startup", "hackathon-winner"],
-                "source":  {"public_name": "LinkedIn"},
+                "tags": ["ml", "langgraph", "startup", "hackathon-winner"],
+                "source": {"public_name": "LinkedIn"},
                 "created_at": datetime.utcnow().isoformat() + "Z",
             }
         },
@@ -71,13 +70,13 @@ MOCK_PAYLOADS: Dict[str, Dict] = {
         "event": "candidateCreated",
         "data": {
             "candidate": {
-                "id":       "lv-77201-cc",
-                "name":     "Diego Fernandez",
+                "id": "lv-77201-cc",
+                "name": "Diego Fernandez",
                 "headline": "Senior Full-Stack Engineer | React + Python | Startup Veteran",
                 "location": "Barcelona, Spain",
-                "emails":   ["diego.fernandez@example.com"],
-                "links":    ["https://github.com/diego-builds", "https://diegoblog.dev"],
-                "tags":     ["python", "react", "fastapi", "startup", "hackathon"],
+                "emails": ["diego.fernandez@example.com"],
+                "links": ["https://github.com/diego-builds", "https://diegoblog.dev"],
+                "tags": ["python", "react", "fastapi", "startup", "hackathon"],
                 "summary": (
                     "Diego Fernandez — Senior Full-Stack Engineer\n"
                     "Skills: Python, React, TypeScript, FastAPI, PostgreSQL, AWS, Docker, "
@@ -97,25 +96,25 @@ MOCK_PAYLOADS: Dict[str, Dict] = {
                 ),
             },
             "opportunity": {
-                "id":      "opp-99123",
+                "id": "opp-99123",
                 "posting": {"text": "Senior AI Engineer", "state": "published"},
-                "stage":   {"text": "New Applicant"},
+                "stage": {"text": "New Applicant"},
             },
         },
     },
 
     "bamboohr": {
         "employeeId": 3821,
-        "action":     "hired",
+        "action": "hired",
         "employee": {
-            "firstName":  "Yuki",
-            "lastName":   "Tanaka",
-            "jobTitle":   "AI/ML Engineer",
+            "firstName": "Yuki",
+            "lastName": "Tanaka",
+            "jobTitle": "AI/ML Engineer",
             "department": "Engineering",
-            "location":   "Tokyo, Japan",
+            "location": "Tokyo, Japan",
             "customFields": {
                 "linkedinProfile": "https://linkedin.com/in/yuki-tanaka",
-                "githubProfile":   "https://github.com/yuki-ai",
+                "githubProfile": "https://github.com/yuki-ai",
                 "skills": "Python, TensorFlow, LLM fine-tuning, FastAPI, GCP, LangChain",
                 "notes": (
                     "Yuki Tanaka — AI/ML Engineer\n"
@@ -140,6 +139,7 @@ MOCK_PAYLOADS: Dict[str, Dict] = {
 
 # ── Normalisers ───────────────────────────────────────────────────────────────
 
+
 def normalise_greenhouse(payload: Dict[str, Any]) -> Optional[Dict]:
     """
     Convert a Greenhouse candidate.created webhook into VelocityHire format.
@@ -150,16 +150,16 @@ def normalise_greenhouse(payload: Dict[str, Any]) -> Optional[Dict]:
         if not cand:
             cand = payload.get("candidate", {})
 
-        first   = cand.get("first_name", "")
-        last    = cand.get("last_name",  "")
-        name    = f"{first} {last}".strip() or "Unknown"
-        headline= cand.get("headline", "")
-        notes   = cand.get("notes", "") or cand.get("summary", "")
-        apps    = cand.get("applications", [{}])
-        job     = apps[0].get("job", {}).get("name", "Unknown Role") if apps else "Unknown Role"
-        tags    = cand.get("tags", [])
-        emails  = cand.get("emails", [])
-        email   = emails[0].get("value", "") if emails else ""
+        first = cand.get("first_name", "")
+        last = cand.get("last_name", "")
+        name = f"{first} {last}".strip() or "Unknown"
+        headline = cand.get("headline", "")
+        notes = cand.get("notes", "") or cand.get("summary", "")
+        apps = cand.get("applications", [{}])
+        job = apps[0].get("job", {}).get("name", "Unknown Role") if apps else "Unknown Role"
+        tags = cand.get("tags", [])
+        emails = cand.get("emails", [])
+        email = emails[0].get("value", "") if emails else ""
 
         # Build profile text for Agent 1
         profile = f"{name}"
@@ -175,10 +175,10 @@ def normalise_greenhouse(payload: Dict[str, Any]) -> Optional[Dict]:
 
         return {
             "candidate_name": name,
-            "profile_text":   profile.strip(),
-            "job_title":      job,
-            "source":         "greenhouse",
-            "raw":            payload,
+            "profile_text": profile.strip(),
+            "job_title": job,
+            "source": "greenhouse",
+            "raw": payload,
         }
     except Exception as exc:
         logger.error("normalise_greenhouse failed: %s", exc)
@@ -191,16 +191,16 @@ def normalise_lever(payload: Dict[str, Any]) -> Optional[Dict]:
     https://hire.lever.co/developer/webhooks
     """
     try:
-        data    = payload.get("data", {})
-        cand    = data.get("candidate", {})
-        opp     = data.get("opportunity", {})
-        name    = cand.get("name", "Unknown")
-        headline= cand.get("headline", "")
-        location= cand.get("location", "")
-        tags    = cand.get("tags", [])
-        links   = cand.get("links", [])
+        data = payload.get("data", {})
+        cand = data.get("candidate", {})
+        opp = data.get("opportunity", {})
+        name = cand.get("name", "Unknown")
+        headline = cand.get("headline", "")
+        location = cand.get("location", "")
+        tags = cand.get("tags", [])
+        links = cand.get("links", [])
         summary = cand.get("summary", "") or cand.get("notes", "")
-        job     = opp.get("posting", {}).get("text", "Unknown Role")
+        job = opp.get("posting", {}).get("text", "Unknown Role")
 
         profile = f"{name}"
         if headline:
@@ -217,10 +217,10 @@ def normalise_lever(payload: Dict[str, Any]) -> Optional[Dict]:
 
         return {
             "candidate_name": name,
-            "profile_text":   profile.strip(),
-            "job_title":      job,
-            "source":         "lever",
-            "raw":            payload,
+            "profile_text": profile.strip(),
+            "job_title": job,
+            "source": "lever",
+            "raw": payload,
         }
     except Exception as exc:
         logger.error("normalise_lever failed: %s", exc)
@@ -233,16 +233,16 @@ def normalise_bamboohr(payload: Dict[str, Any]) -> Optional[Dict]:
     https://documentation.bamboohr.com/docs/webhooks
     """
     try:
-        emp     = payload.get("employee", {})
-        custom  = emp.get("customFields", {})
-        first   = emp.get("firstName", "")
-        last    = emp.get("lastName", "")
-        name    = f"{first} {last}".strip() or "Unknown"
-        title   = emp.get("jobTitle", "Unknown Role")
-        dept    = emp.get("department", "")
-        location= emp.get("location", "")
-        skills  = custom.get("skills", "")
-        notes   = custom.get("notes", "")
+        emp = payload.get("employee", {})
+        custom = emp.get("customFields", {})
+        first = emp.get("firstName", "")
+        last = emp.get("lastName", "")
+        name = f"{first} {last}".strip() or "Unknown"
+        title = emp.get("jobTitle", "Unknown Role")
+        dept = emp.get("department", "")
+        location = emp.get("location", "")
+        skills = custom.get("skills", "")
+        notes = custom.get("notes", "")
 
         profile = f"{name} — {title}\n"
         if dept:
@@ -256,10 +256,10 @@ def normalise_bamboohr(payload: Dict[str, Any]) -> Optional[Dict]:
 
         return {
             "candidate_name": name,
-            "profile_text":   profile.strip(),
-            "job_title":      title,
-            "source":         "bamboohr",
-            "raw":            payload,
+            "profile_text": profile.strip(),
+            "job_title": title,
+            "source": "bamboohr",
+            "raw": payload,
         }
     except Exception as exc:
         logger.error("normalise_bamboohr failed: %s", exc)
@@ -270,34 +270,34 @@ def normalise_bamboohr(payload: Dict[str, Any]) -> Optional[Dict]:
 
 NORMALISERS = {
     "greenhouse": normalise_greenhouse,
-    "lever":      normalise_lever,
-    "bamboohr":   normalise_bamboohr,
+    "lever": normalise_lever,
+    "bamboohr": normalise_bamboohr,
 }
 
 PROVIDER_META = {
     "greenhouse": {
-        "name":    "Greenhouse",
-        "logo":    "🌿",
-        "color":   "#3db639",
-        "docs":    "https://developers.greenhouse.io/webhooks.html",
-        "event":   "candidate.created",
-        "status":  "active",
+        "name": "Greenhouse",
+        "logo": "🌿",
+        "color": "#3db639",
+        "docs": "https://developers.greenhouse.io/webhooks.html",
+        "event": "candidate.created",
+        "status": "active",
     },
     "lever": {
-        "name":    "Lever",
-        "logo":    "⚙️",
-        "color":   "#006dff",
-        "docs":    "https://hire.lever.co/developer/webhooks",
-        "event":   "candidateCreated",
-        "status":  "active",
+        "name": "Lever",
+        "logo": "⚙️",
+        "color": "#006dff",
+        "docs": "https://hire.lever.co/developer/webhooks",
+        "event": "candidateCreated",
+        "status": "active",
     },
     "bamboohr": {
-        "name":    "BambooHR",
-        "logo":    "🎋",
-        "color":   "#74a318",
-        "docs":    "https://documentation.bamboohr.com/docs/webhooks",
-        "event":   "employee.hired",
-        "status":  "active",
+        "name": "BambooHR",
+        "logo": "🎋",
+        "color": "#74a318",
+        "docs": "https://documentation.bamboohr.com/docs/webhooks",
+        "event": "employee.hired",
+        "status": "active",
     },
 }
 
@@ -321,8 +321,8 @@ def list_integrations() -> Dict:
     return {
         provider: {
             **meta,
-            "webhook_url":  f"/ats/{provider}/webhook",
-            "test_url":     f"/ats/{provider}/test",
+            "webhook_url": f"/ats/{provider}/webhook",
+            "test_url": f"/ats/{provider}/test",
             "mock_payload": MOCK_PAYLOADS.get(provider, {}),
         }
         for provider, meta in PROVIDER_META.items()

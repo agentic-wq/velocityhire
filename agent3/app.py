@@ -3,7 +3,11 @@ Agent 3 — Outreach Coordinator  |  FastAPI Web Application
 VelocityHire Hackathon Prototype
 """
 
-import json, logging, os, sys
+from agent_3 import generate_outreach
+import json
+import logging
+import os
+import sys
 from pathlib import Path
 import httpx
 from fastapi import FastAPI, HTTPException, Header
@@ -23,7 +27,6 @@ logger = logging.getLogger("agent3")
 
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))   # shared/ package
-from agent_3 import generate_outreach
 
 # ── Phase 4: shared memory ────────────────────────────────────────────────────
 try:
@@ -478,13 +481,13 @@ async def proxy_agent1(body: dict):
 async def proxy_agent2(body: dict):
     """Proxy → Agent 2 using adaptability score from Agent 1."""
     payload = {
-        "job_title":          body.get("job_title", "Engineer"),
-        "job_description":    body.get("job_description", ""),
-        "required_skills":    body.get("required_skills", []),
-        "candidate_name":     body.get("candidate_name", "Candidate"),
-        "candidate_profile":  body.get("profile_text", ""),
+        "job_title": body.get("job_title", "Engineer"),
+        "job_description": body.get("job_description", ""),
+        "required_skills": body.get("required_skills", []),
+        "candidate_name": body.get("candidate_name", "Candidate"),
+        "candidate_profile": body.get("profile_text", ""),
         "adaptability_score": body.get("adaptability_score", 50),
-        "adaptability_tier":  body.get("adaptability_tier", "Unknown"),
+        "adaptability_tier": body.get("adaptability_tier", "Unknown"),
     }
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(f"{AGENT2_URL}/match", json=payload)
@@ -500,12 +503,12 @@ async def generate(
     company_id = (x_company_id or "demo").strip()
     # Auto-fetch scores from Agent 1 + 2 if not provided
     adapt_score = req.adaptability_score
-    adapt_tier  = req.adaptability_tier or "Unknown"
+    adapt_tier = req.adaptability_tier or "Unknown"
     match_score = req.total_match_score
-    match_tier  = req.match_tier or "Unknown"
-    matched     = req.matched_skills or []
-    startup     = req.startup_experience or False
-    reasoning   = req.reasoning or ""
+    match_tier = req.match_tier or "Unknown"
+    matched = req.matched_skills or []
+    startup = req.startup_experience or False
+    reasoning = req.reasoning or ""
 
     if adapt_score is None or match_score is None:
         try:
@@ -516,25 +519,25 @@ async def generate(
                 if r1.status_code == 200:
                     d1 = r1.json()
                     adapt_score = d1.get("adaptability_score", 50)
-                    adapt_tier  = d1.get("tier", "Unknown")
+                    adapt_tier = d1.get("tier", "Unknown")
                 # Agent 2
                 r2 = await client.post(f"{AGENT2_URL}/match", json={
-                    "job_title":          req.job_title,
-                    "job_description":    req.job_description or "",
-                    "required_skills":    req.required_skills or [],
-                    "candidate_name":     req.candidate_name,
-                    "candidate_profile":  req.candidate_profile,
+                    "job_title": req.job_title,
+                    "job_description": req.job_description or "",
+                    "required_skills": req.required_skills or [],
+                    "candidate_name": req.candidate_name,
+                    "candidate_profile": req.candidate_profile,
                     "adaptability_score": adapt_score,
-                    "adaptability_tier":  adapt_tier,
+                    "adaptability_tier": adapt_tier,
                 })
                 if r2.status_code == 200:
                     d2 = r2.json()
                     match_score = d2.get("total_match_score", 60)
-                    match_tier  = d2.get("match_tier", "Unknown")
-                    bd          = d2.get("score_breakdown", {})
-                    matched     = bd.get("role_fit", {}).get("matched_skills", [])
-                    startup     = bd.get("culture_fit", {}).get("startup_experience", False)
-                    reasoning   = d2.get("reasoning", "")
+                    match_tier = d2.get("match_tier", "Unknown")
+                    bd = d2.get("score_breakdown", {})
+                    matched = bd.get("role_fit", {}).get("matched_skills", [])
+                    startup = bd.get("culture_fit", {}).get("startup_experience", False)
+                    reasoning = d2.get("reasoning", "")
         except Exception as e:
             logger.warning("Pipeline proxy failed: %s", str(e))
             adapt_score = adapt_score or 60
@@ -588,10 +591,10 @@ async def pipeline_dashboard(
     # company param from query string takes priority, then header
     tenant = company or x_company_id or None
     try:
-        candidates  = get_recent_candidates(50, company_id=tenant)
-        matches     = get_recent_matches(50,     company_id=tenant)
-        campaigns   = get_recent_campaigns(50,   company_id=tenant)
-        db_stats    = get_db_stats()
+        candidates = get_recent_candidates(50, company_id=tenant)
+        matches = get_recent_matches(50, company_id=tenant)
+        campaigns = get_recent_campaigns(50, company_id=tenant)
+        db_stats = get_db_stats()
         all_tenants = list_companies()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -599,7 +602,7 @@ async def pipeline_dashboard(
     # Build lookup maps keyed by candidate_name (latest entry wins)
     cand_map = {r["candidate_name"]: r for r in reversed(candidates)}
     match_map = {r["candidate_name"]: r for r in reversed(matches)}
-    camp_map  = {r["candidate_name"]: r for r in reversed(campaigns)}
+    camp_map = {r["candidate_name"]: r for r in reversed(campaigns)}
 
     all_names = list(dict.fromkeys(
         [r["candidate_name"] for r in campaigns] +
@@ -620,14 +623,14 @@ async def pipeline_dashboard(
 
     rows_html = ""
     for name in all_names:
-        c  = cand_map.get(name, {})
-        m  = match_map.get(name, {})
+        c = cand_map.get(name, {})
+        m = match_map.get(name, {})
         oc = camp_map.get(name, {})
         a_score = c.get("adaptability_score", "—")
         m_score = m.get("total_match_score", "—")
-        tier    = oc.get("outreach_tier", "—")
-        date    = (oc.get("created_at") or m.get("created_at") or c.get("created_at") or "")[:10]
-        job     = m.get("job_title") or oc.get("job_title") or "—"
+        tier = oc.get("outreach_tier", "—")
+        date = (oc.get("created_at") or m.get("created_at") or c.get("created_at") or "")[:10]
+        job = m.get("job_title") or oc.get("job_title") or "—"
         recommend = c.get("recommend_interview", "—")
         rows_html += f"""
         <tr>
@@ -671,7 +674,7 @@ async def pipeline_dashboard(
 <header>
   <div class="logo">⚡ VelocityHire</div>
   <span class="badge">Phase 4 · Pipeline Dashboard</span>
-  <span class="badge" style="margin-left:auto;">Shared Memory · {db_stats.get("db_path","SQLite")[-30:]}</span>
+  <span class="badge" style="margin-left:auto;">Shared Memory · {db_stats.get("db_path", "SQLite")[-30:]}</span>
 </header>
 <div class="container">
   <div style="margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
@@ -683,14 +686,14 @@ async def pipeline_dashboard(
       <label style="font-size:.75rem;color:var(--muted);">Company:</label>
       <select name="company" onchange="this.form.submit()" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;padding:6px 10px;font-size:.8rem;cursor:pointer;">
         <option value="">All companies</option>
-        {"".join(f'<option value="{c["company_id"]}" {"selected" if c["company_id"]==tenant else ""}>{c["company_name"]} ({c["company_id"]})</option>' for c in all_tenants)}
+        {"".join(f'<option value="{c["company_id"]}" {"selected" if c["company_id"] == tenant else ""}>{c["company_name"]} ({c["company_id"]})</option>' for c in all_tenants)}
       </select>
     </form>
   </div>
   <div class="stats">
-    <div class="stat-card"><div class="num">{db_stats.get("candidates",0)}</div><div class="lbl">Profiles Analyzed<br>(Agent 1)</div></div>
-    <div class="stat-card"><div class="num">{db_stats.get("job_matches",0)}</div><div class="lbl">Jobs Matched<br>(Agent 2)</div></div>
-    <div class="stat-card"><div class="num">{db_stats.get("outreach_campaigns",0)}</div><div class="lbl">Campaigns Sent<br>(Agent 3)</div></div>
+    <div class="stat-card"><div class="num">{db_stats.get("candidates", 0)}</div><div class="lbl">Profiles Analyzed<br>(Agent 1)</div></div>
+    <div class="stat-card"><div class="num">{db_stats.get("job_matches", 0)}</div><div class="lbl">Jobs Matched<br>(Agent 2)</div></div>
+    <div class="stat-card"><div class="num">{db_stats.get("outreach_campaigns", 0)}</div><div class="lbl">Campaigns Sent<br>(Agent 3)</div></div>
     <div class="stat-card"><div class="num">{len(all_names)}</div><div class="lbl">Unique<br>Candidates</div></div>
   </div>
   {"<table><thead><tr><th>Candidate</th><th>Role</th><th>Adaptability</th><th>Job Match</th><th>Outreach Tier</th><th>Interview?</th><th>Date</th></tr></thead><tbody>" + rows_html + "</tbody></table>" if all_names else '<div class="empty"><div style="font-size:3rem;">📭</div><p style="margin-top:12px;">No pipeline data yet — run some candidates through the agents!</p></div>'}
@@ -739,22 +742,22 @@ async def analytics_dashboard(
     try:
         from shared.analytics import get_full_analytics
         from shared.db_memory import list_companies
-        data    = get_full_analytics(tenant)
+        data = get_full_analytics(tenant)
         tenants = list_companies()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    funnel   = data.get("funnel", {})
-    scores   = data.get("score_distribution", {})
-    tiers    = data.get("tier_breakdown", {})
-    daily    = data.get("daily_activity", {})
-    skills   = data.get("top_skills", {})
-    avgs     = data.get("avg_scores", {})
+    funnel = data.get("funnel", {})
+    scores = data.get("score_distribution", {})
+    tiers = data.get("tier_breakdown", {})
+    daily = data.get("daily_activity", {})
+    skills = data.get("top_skills", {})
+    avgs = data.get("avg_scores", {})
     insights = data.get("predictive_insights", [])
 
     # Build tenant selector options
     tenant_opts = "".join(
-        f'<option value="{c["company_id"]}" {"selected" if c["company_id"]==tenant else ""}>'
+        f'<option value="{c["company_id"]}" {"selected" if c["company_id"] == tenant else ""}>'
         f'{c["company_name"]}</option>'
         for c in tenants
     )
@@ -766,15 +769,15 @@ async def analytics_dashboard(
         insight_cards += f"""
         <div class="insight-card" style="border-left:3px solid {col};">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <span style="font-size:1.6rem;">{ins.get("icon","📊")}</span>
+            <span style="font-size:1.6rem;">{ins.get("icon", "📊")}</span>
             <div>
-              <div style="font-size:.82rem;font-weight:700;color:#e2e8f0;">{ins.get("title","")}</div>
-              <div style="font-size:1.8rem;font-weight:900;color:{col};">{ins.get("value","—")}</div>
+              <div style="font-size:.82rem;font-weight:700;color:#e2e8f0;">{ins.get("title", "")}</div>
+              <div style="font-size:1.8rem;font-weight:900;color:{col};">{ins.get("value", "—")}</div>
             </div>
           </div>
-          <div style="font-size:.74rem;color:#94a3b8;line-height:1.5;">{ins.get("detail","")}</div>
+          <div style="font-size:.74rem;color:#94a3b8;line-height:1.5;">{ins.get("detail", "")}</div>
           <div style="font-size:.74rem;color:#e2e8f0;margin-top:6px;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:6px;">
-            💡 {ins.get("recommendation","")}
+            💡 {ins.get("recommendation", "")}
           </div>
         </div>"""
 
@@ -841,24 +844,24 @@ async def analytics_dashboard(
     <div class="section-title">Key Metrics</div>
     <div class="grid-4">
       <div class="metric-card">
-        <div class="num" style="color:var(--accent);">{funnel.get("profiles_analyzed",0)}</div>
+        <div class="num" style="color:var(--accent);">{funnel.get("profiles_analyzed", 0)}</div>
         <div class="lbl">Profiles Analyzed</div>
-        <div class="sub">avg score: {avgs.get("avg_adaptability","—")}/100</div>
+        <div class="sub">avg score: {avgs.get("avg_adaptability", "—")}/100</div>
       </div>
       <div class="metric-card">
-        <div class="num" style="color:var(--green);">{funnel.get("jobs_matched",0)}</div>
+        <div class="num" style="color:var(--green);">{funnel.get("jobs_matched", 0)}</div>
         <div class="lbl">Jobs Matched</div>
-        <div class="sub">match rate: {funnel.get("match_rate_pct",0)}%</div>
+        <div class="sub">match rate: {funnel.get("match_rate_pct", 0)}%</div>
       </div>
       <div class="metric-card">
-        <div class="num" style="color:var(--accent2);">{funnel.get("campaigns_sent",0)}</div>
+        <div class="num" style="color:var(--accent2);">{funnel.get("campaigns_sent", 0)}</div>
         <div class="lbl">Campaigns Sent</div>
-        <div class="sub">priority: {funnel.get("priority_candidates",0)}</div>
+        <div class="sub">priority: {funnel.get("priority_candidates", 0)}</div>
       </div>
       <div class="metric-card">
-        <div class="num" style="color:#22c55e;">{funnel.get("interview_recommended",0)}</div>
+        <div class="num" style="color:#22c55e;">{funnel.get("interview_recommended", 0)}</div>
         <div class="lbl">Interview Recommended</div>
-        <div class="sub">rate: {funnel.get("interview_rate_pct",0)}%</div>
+        <div class="sub">rate: {funnel.get("interview_rate_pct", 0)}%</div>
       </div>
     </div>
   </div>
@@ -873,19 +876,19 @@ async def analytics_dashboard(
         <div class="bar-wrap"><div class="bar-fill" style="width:{pct}%;background:{color};">{val if val else ""}</div></div>
         <div class="count" style="color:{color};">{val}</div>
       </div>''' for label, val, pct, color in [
-          ("Profiles Analyzed",   funnel.get("profiles_analyzed",0),
-           100, "#6c63ff"),
-          ("Jobs Matched",        funnel.get("jobs_matched",0),
-           round(funnel.get("match_rate_pct",0)), "#22c55e"),
-          ("Campaigns Sent",      funnel.get("campaigns_sent",0),
-           round(funnel.get("outreach_rate_pct",0)), "#f5a623"),
-          ("Priority Fast-Track", funnel.get("priority_candidates",0),
-           round(funnel.get("priority_rate_pct",0)), "#ef4444"),
-      ])}
+        ("Profiles Analyzed", funnel.get("profiles_analyzed", 0),
+         100, "#6c63ff"),
+        ("Jobs Matched", funnel.get("jobs_matched", 0),
+         round(funnel.get("match_rate_pct", 0)), "#22c55e"),
+        ("Campaigns Sent", funnel.get("campaigns_sent", 0),
+         round(funnel.get("outreach_rate_pct", 0)), "#f5a623"),
+        ("Priority Fast-Track", funnel.get("priority_candidates", 0),
+         round(funnel.get("priority_rate_pct", 0)), "#ef4444"),
+    ])}
     </div>
 
     <div class="card">
-      <div class="section-title">Daily Activity (last {daily.get("days",14)} days)</div>
+      <div class="section-title">Daily Activity (last {daily.get("days", 14)} days)</div>
       <div class="chart-wrap">
         <canvas id="dailyChart"></canvas>
       </div>
@@ -895,7 +898,7 @@ async def analytics_dashboard(
   <!-- Score distribution + Tier breakdown -->
   <div class="grid-2">
     <div class="card">
-      <div class="section-title">Adaptability Score Distribution (avg: {scores.get("average","—")})</div>
+      <div class="section-title">Adaptability Score Distribution (avg: {scores.get("average", "—")})</div>
       <div class="chart-wrap">
         <canvas id="scoreChart"></canvas>
       </div>
@@ -910,7 +913,7 @@ async def analytics_dashboard(
 
   <!-- Top skills -->
   <div class="card" style="margin-bottom:20px;">
-    <div class="section-title">Top Matched Skills ({skills.get("total_unique",0)} unique skills)</div>
+    <div class="section-title">Top Matched Skills ({skills.get("total_unique", 0)} unique skills)</div>
     <div class="chart-wrap" style="height:200px;">
       <canvas id="skillsChart"></canvas>
     </div>

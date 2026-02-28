@@ -3,7 +3,10 @@ Agent 2 — Job Matcher  |  FastAPI Web Application
 VelocityHire Hackathon Prototype
 """
 
-import json, logging, os, sys
+from agent_2 import match_candidate
+import logging
+import os
+import sys
 from pathlib import Path
 import httpx
 from fastapi import FastAPI, HTTPException, Header
@@ -23,7 +26,6 @@ logger = logging.getLogger("agent2")
 
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))   # shared/ package
-from agent_2 import match_candidate
 
 # ── Phase 4: shared memory ────────────────────────────────────────────────────
 try:
@@ -433,7 +435,7 @@ async def match(
 
     # If no adaptability score provided, attempt to get it from Agent 1
     adapt_score = req.adaptability_score
-    adapt_tier  = req.adaptability_tier or "Unknown"
+    adapt_tier = req.adaptability_tier or "Unknown"
     if adapt_score is None:
         try:
             async with httpx.AsyncClient(timeout=20) as client:
@@ -442,7 +444,7 @@ async def match(
                 if r.status_code == 200:
                     a1 = r.json()
                     adapt_score = a1.get("adaptability_score", 50)
-                    adapt_tier  = a1.get("tier", "Unknown")
+                    adapt_tier = a1.get("tier", "Unknown")
         except Exception:
             adapt_score = 50  # neutral fallback
 

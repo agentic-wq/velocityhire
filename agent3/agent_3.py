@@ -15,9 +15,7 @@ Each campaign includes:
   4. Internal recruiter note      (for ATS / hiring manager handoff)
 """
 
-import os
-import re
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List
 from datetime import datetime
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
@@ -75,24 +73,24 @@ def _extract_highlights(profile: str, matched_skills: List[str]) -> List[str]:
     highlights = []
 
     # Hackathon wins
-    if any(w in text for w in ["winner","won","1st place","best hack"]):
-        for kw in ["hackathon","buildathon","coding competition","hack day"]:
+    if any(w in text for w in ["winner", "won", "1st place", "best hack"]):
+        for kw in ["hackathon", "buildathon", "coding competition", "hack day"]:
             if kw in text:
                 highlights.append(f"hackathon winner ({kw})")
                 break
 
     # Recent learning signals
-    recent = [t for t in ["langchain","langgraph","llm","genai","vector","next.js","svelte","rust","fastapi"]
+    recent = [t for t in ["langchain", "langgraph", "llm", "genai", "vector", "next.js", "svelte", "rust", "fastapi"]
               if t in text]
     if recent:
         highlights.append(f"recently adopted {', '.join(recent[:3])}")
 
     # Startup experience
-    if any(w in text for w in ["startup","seed","series a","founding"]):
+    if any(w in text for w in ["startup", "seed", "series a", "founding"]):
         highlights.append("startup / early-stage experience")
 
     # Certifications
-    if any(w in text for w in ["certified","certification","aws cert","gcp cert"]):
+    if any(w in text for w in ["certified", "certification", "aws cert", "gcp cert"]):
         highlights.append("recently certified")
 
     # Matched skills
@@ -127,9 +125,9 @@ def classify_tier(state: OutreachState) -> OutreachState:
 
 def generate_linkedin(state: OutreachState) -> OutreachState:
     first = _first_name(state["candidate_name"])
-    tier  = state["outreach_tier"]
-    job   = state["job_title"]
-    co    = state["company_name"]
+    tier = state["outreach_tier"]
+    job = state["job_title"]
+    co = state["company_name"]
 
     highlight = state["key_highlights"][0] if state["key_highlights"] else "your impressive profile"
 
@@ -162,22 +160,22 @@ def generate_linkedin(state: OutreachState) -> OutreachState:
 # ─────────────────────────────────────────────
 
 def generate_email(state: OutreachState) -> OutreachState:
-    first      = _first_name(state["candidate_name"])
-    tier       = state["outreach_tier"]
-    job        = state["job_title"]
-    co         = state["company_name"]
-    recruiter  = state["recruiter_name"]
-    score      = state["total_match_score"]
+    first = _first_name(state["candidate_name"])
+    tier = state["outreach_tier"]
+    job = state["job_title"]
+    co = state["company_name"]
+    recruiter = state["recruiter_name"]
+    score = state["total_match_score"]
     highlights = state["key_highlights"]
-    adapt      = state["adaptability_score"]
+    adapt = state["adaptability_score"]
 
     bullets = "\n".join(f"  • {h.capitalize()}" for h in highlights) if highlights else "  • Strong technical profile"
 
     subjects = {
         "PRIORITY": f"🚀 Fast-track opportunity: {job} at {co} — made for someone like you",
         "STANDARD": f"Exciting {job} opportunity at {co} — your profile stands out",
-        "NURTURE":  f"Keeping you in mind for future roles at {co}",
-        "ARCHIVE":  f"Connecting for future opportunities at {co}",
+        "NURTURE": f"Keeping you in mind for future roles at {co}",
+        "ARCHIVE": f"Connecting for future opportunities at {co}",
     }
 
     intros = {
@@ -203,10 +201,10 @@ def generate_email(state: OutreachState) -> OutreachState:
     }
 
     ctas = {
-        "PRIORITY": f"I'd love to schedule a 20-minute call this week to tell you more. Does Thursday or Friday work?",
-        "STANDARD": f"Would you be open to a 20-minute exploratory call this week?",
-        "NURTURE":  f"Would you be open to staying connected so I can reach out when the right role opens up?",
-        "ARCHIVE":  f"Feel free to reach out if you're ever exploring new opportunities.",
+        "PRIORITY": "I'd love to schedule a 20-minute call this week to tell you more. Does Thursday or Friday work?",
+        "STANDARD": "Would you be open to a 20-minute exploratory call this week?",
+        "NURTURE": "Would you be open to staying connected so I can reach out when the right role opens up?",
+        "ARCHIVE": "Feel free to reach out if you're ever exploring new opportunities.",
     }
 
     body = f"""Hi {first},
@@ -236,11 +234,11 @@ P.S. We don't use traditional "years of experience" filters. Your adaptability s
 # ─────────────────────────────────────────────
 
 def generate_followup(state: OutreachState) -> OutreachState:
-    first     = _first_name(state["candidate_name"])
-    job       = state["job_title"]
-    co        = state["company_name"]
+    first = _first_name(state["candidate_name"])
+    job = state["job_title"]
+    co = state["company_name"]
     recruiter = state["recruiter_name"]
-    tier      = state["outreach_tier"]
+    tier = state["outreach_tier"]
 
     if tier == "ARCHIVE":
         return {**state, "followup_subject": "", "followup_body": ""}
@@ -319,14 +317,14 @@ def build_output(state: OutreachState) -> OutreachState:
         "adaptability_score": state["adaptability_score"],
         "key_highlights": state["key_highlights"],
         "campaign": {
-            "linkedin_message":  state["linkedin_message"],
+            "linkedin_message": state["linkedin_message"],
             "email": {
                 "subject": state["email_subject"],
-                "body":    state["email_body"],
+                "body": state["email_body"],
             },
             "followup": {
                 "subject": state["followup_subject"],
-                "body":    state["followup_body"],
+                "body": state["followup_body"],
                 "send_after_days": 5,
             },
             "recruiter_note": state["recruiter_note"],
@@ -343,20 +341,20 @@ def build_output(state: OutreachState) -> OutreachState:
 def build_agent_3():
     graph = StateGraph(OutreachState)
 
-    graph.add_node("classify_tier",          classify_tier)
-    graph.add_node("generate_linkedin",       generate_linkedin)
-    graph.add_node("generate_email",          generate_email)
-    graph.add_node("generate_followup",       generate_followup)
+    graph.add_node("classify_tier", classify_tier)
+    graph.add_node("generate_linkedin", generate_linkedin)
+    graph.add_node("generate_email", generate_email)
+    graph.add_node("generate_followup", generate_followup)
     graph.add_node("generate_recruiter_note", generate_recruiter_note)
-    graph.add_node("build_output",            build_output)
+    graph.add_node("build_output", build_output)
 
     graph.set_entry_point("classify_tier")
-    graph.add_edge("classify_tier",          "generate_linkedin")
-    graph.add_edge("generate_linkedin",       "generate_email")
-    graph.add_edge("generate_email",          "generate_followup")
-    graph.add_edge("generate_followup",       "generate_recruiter_note")
+    graph.add_edge("classify_tier", "generate_linkedin")
+    graph.add_edge("generate_linkedin", "generate_email")
+    graph.add_edge("generate_email", "generate_followup")
+    graph.add_edge("generate_followup", "generate_recruiter_note")
     graph.add_edge("generate_recruiter_note", "build_output")
-    graph.add_edge("build_output",            END)
+    graph.add_edge("build_output", END)
 
     return graph.compile()
 
@@ -384,29 +382,29 @@ def generate_outreach(
     reasoning: str,
 ) -> dict:
     initial: OutreachState = {
-        "candidate_name":     candidate_name,
-        "candidate_profile":  candidate_profile,
-        "job_title":          job_title,
-        "company_name":       company_name,
-        "recruiter_name":     recruiter_name,
-        "total_match_score":  total_match_score,
-        "match_tier":         match_tier,
+        "candidate_name": candidate_name,
+        "candidate_profile": candidate_profile,
+        "job_title": job_title,
+        "company_name": company_name,
+        "recruiter_name": recruiter_name,
+        "total_match_score": total_match_score,
+        "match_tier": match_tier,
         "adaptability_score": adaptability_score,
-        "adaptability_tier":  adaptability_tier,
-        "matched_skills":     matched_skills,
+        "adaptability_tier": adaptability_tier,
+        "matched_skills": matched_skills,
         "startup_experience": startup_experience,
-        "recommend_interview":recommend_interview,
-        "reasoning":          reasoning,
-        "outreach_tier":      "",
-        "tone":               "",
-        "key_highlights":     [],
-        "linkedin_message":   "",
-        "email_subject":      "",
-        "email_body":         "",
-        "followup_subject":   "",
-        "followup_body":      "",
-        "recruiter_note":     "",
-        "final_output":       {},
+        "recommend_interview": recommend_interview,
+        "reasoning": reasoning,
+        "outreach_tier": "",
+        "tone": "",
+        "key_highlights": [],
+        "linkedin_message": "",
+        "email_subject": "",
+        "email_body": "",
+        "followup_subject": "",
+        "followup_body": "",
+        "recruiter_note": "",
+        "final_output": {},
     }
     result = agent_3_graph.invoke(initial)
     return result["final_output"]
