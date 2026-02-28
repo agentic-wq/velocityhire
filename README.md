@@ -2,7 +2,7 @@
 
 > **Complete.dev Hackathon 2026** · Built with LangGraph · Multi-agent · Multi-tenant
 
-[![CI / Deploy](https://github.com/agentic-wq/velocityhire/actions/workflows/deploy.yml/badge.svg?branch=master)](https://github.com/agentic-wq/velocityhire/actions/workflows/deploy.yml)
+[![CI / CD](https://github.com/agentic-wq/velocityhire/actions/workflows/ci-cd.yaml/badge.svg?branch=master)](https://github.com/agentic-wq/velocityhire/actions/workflows/ci-cd.yaml)
 
 VelocityHire identifies candidates with the highest **learning velocity** — not just years of experience.
 Three LangGraph agents collaborate to score adaptability, match candidates to roles, and generate
@@ -297,7 +297,7 @@ tail -f logs/agent3.log  # Outreach Coordinator
 
 **Current deployment status:** ✅ Active — Workload Identity Federation is configured and all GCP secrets are set.
 
-Every commit triggers the **CI / Deploy** GitHub Actions workflow:
+Every commit triggers the **CI / CD** GitHub Actions workflow (`ci-cd.yaml`):
 
 ```
 push / pull_request → master
