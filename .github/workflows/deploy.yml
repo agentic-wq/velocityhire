@@ -79,11 +79,14 @@ jobs:
           WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
           PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          SA_KEY: ${{ secrets.GCP_SA_KEY }}
         run: |
           failed=0
-          [ -z "$WORKLOAD_IDENTITY_PROVIDER" ] && echo "::error::Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER" && failed=1
-          [ -z "$SERVICE_ACCOUNT" ] && echo "::error::Missing secret: GCP_SERVICE_ACCOUNT" && failed=1
           [ -z "$PROJECT_ID" ] && echo "::error::Missing secret: GCP_PROJECT_ID" && failed=1
+          if [ -z "$SA_KEY" ]; then
+            [ -z "$WORKLOAD_IDENTITY_PROVIDER" ] && echo "::error::Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER (or set GCP_SA_KEY)" && failed=1
+            [ -z "$SERVICE_ACCOUNT" ] && echo "::error::Missing secret: GCP_SERVICE_ACCOUNT (or set GCP_SA_KEY)" && failed=1
+          fi
           if [ "$failed" = "1" ]; then
             echo "Add missing secrets at: Settings → Secrets and variables → Actions"
             exit 1
@@ -107,6 +110,7 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
