@@ -334,11 +334,33 @@ Before merging, add the following secrets under
 | `GCP_REGION` *(optional)* | Artifact Registry / Cloud Run region — defaults to `us-central1` |
 
 Authentication uses **keyless Workload Identity Federation** (no long-lived JSON key).  
-The GCP WIF provider must be configured with the attribute condition:
+No JSON service-account key is stored anywhere — GitHub's OIDC token is exchanged for
+short-lived GCP credentials at run time.
 
+### GCP-side WIF setup (one-time)
+
+Run the provided setup script from any machine that has `gcloud` installed and
+**Owner** (or sufficient IAM) access to your GCP project:
+
+```bash
+export GCP_PROJECT_ID=my-project-id   # your GCP project
+export GCP_REGION=us-central1          # optional, default us-central1
+bash scripts/setup-wif.sh
 ```
-attribute.repository == "agentic-wq/velocityhire"
-```
+
+The script performs these steps automatically:
+
+| Step | What it does |
+|------|--------------|
+| 1 | Enables `iamcredentials`, `cloudresourcemanager`, `run`, and `artifactregistry` APIs |
+| 2 | Creates service account `velocityhire-deploy@<project>.iam.gserviceaccount.com` with roles `artifactregistry.writer`, `run.admin`, `iam.serviceAccountUser` |
+| 3 | Creates Workload Identity Pool `github-pool` |
+| 4 | Creates GitHub OIDC provider `github-provider` with the attribute condition `attribute.repository == "agentic-wq/velocityhire"` |
+| 5 | Binds the service account to the pool so only this repository can impersonate it |
+| 6 | Prints the exact values to paste into GitHub secrets |
+
+After the script prints its output, copy the four values into  
+**Settings → Secrets and variables → Actions** and push your changes to trigger the first deployment.
 
 ---
 
