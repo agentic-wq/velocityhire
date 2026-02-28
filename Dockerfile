@@ -26,6 +26,7 @@ COPY . .
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV MOCK_MODE=true
+ENV PYTHONPATH=/app/agent1:/app/agent2:/app/agent3:/app
 
 # Expose port
 EXPOSE 8080
