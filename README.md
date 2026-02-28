@@ -291,4 +291,53 @@ tail -f logs/agent3.log  # Outreach Coordinator
 
 ---
 
+## CI / CD — Deployment Pipeline
+
+Every commit triggers the **CI / Deploy** GitHub Actions workflow:
+
+```
+push / pull_request → main
+         │
+         ▼
+  ┌─────────────┐
+  │ Lint & Test │  flake8 + pytest (all branches)
+  └──────┬──────┘
+         ▼
+  ┌─────────────┐
+  │    Build    │  docker build (all branches — smoke-test only)
+  └──────┬──────┘
+         │ only on push to main ↓
+         ▼
+  ┌─────────────────────────────┐
+  │ Deploy to Google Cloud Run  │  push image → Artifact Registry
+  │                             │  gcloud run deploy velocityhire
+  └─────────────────────────────┘
+```
+
+### When does the first deployment happen?
+
+**The first deployment fires automatically the moment this branch is merged into `main`.**  
+That merge commit triggers a `push` event on `main`, which passes through Lint → Build → Deploy in sequence.
+
+### Required repository secrets
+
+Before merging, add the following secrets under  
+**Settings → Secrets and variables → Actions**:
+
+| Secret | Description |
+|--------|-------------|
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name, e.g. `projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
+| `GCP_SERVICE_ACCOUNT` | Service account email to impersonate, e.g. `deploy@my-project.iam.gserviceaccount.com` |
+| `GCP_PROJECT_ID` | GCP project ID |
+| `GCP_REGION` *(optional)* | Artifact Registry / Cloud Run region — defaults to `us-central1` |
+
+Authentication uses **keyless Workload Identity Federation** (no long-lived JSON key).  
+The GCP WIF provider must be configured with the attribute condition:
+
+```
+attribute.repository == "agentic-wq/velocityhire"
+```
+
+---
+
 *Built for the Complete.dev Hackathon · February 2026*
