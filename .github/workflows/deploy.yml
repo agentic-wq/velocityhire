@@ -74,6 +74,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate required GCP secrets
+        env:
+          WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          failed=0
+          [ -z "$WORKLOAD_IDENTITY_PROVIDER" ] && echo "::error::Missing secret: GCP_WORKLOAD_IDENTITY_PROVIDER" && failed=1
+          [ -z "$SERVICE_ACCOUNT" ] && echo "::error::Missing secret: GCP_SERVICE_ACCOUNT" && failed=1
+          [ -z "$PROJECT_ID" ] && echo "::error::Missing secret: GCP_PROJECT_ID" && failed=1
+          if [ "$failed" = "1" ]; then
+            echo "Add missing secrets at: Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+
       - name: Compute image path
         run: |
           echo "IMAGE=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/velocityhire/velocityhire" >> "$GITHUB_ENV"
