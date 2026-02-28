@@ -17,7 +17,7 @@ import os
 import json
 import re
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import TypedDict, Optional
 from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
@@ -58,8 +58,8 @@ def _mock_llm(prompt: str) -> str:
     hack_score = 0.0
     hack_keywords = ["hackathon", "hack day", "buildathon", "coding competition",
                      "junction", "hackmit", "angelhack", "innovation challenge"]
-    win_keywords  = ["winner", "won", "1st place", "first place", "best hack"]
-    fin_keywords  = ["finalist", "runner-up", "2nd place", "top 3"]
+    win_keywords = ["winner", "won", "1st place", "first place", "best hack"]
+    fin_keywords = ["finalist", "runner-up", "2nd place", "top 3"]
 
     for kw in hack_keywords:
         if kw in text:
@@ -68,43 +68,47 @@ def _mock_llm(prompt: str) -> str:
             ai_ml = any(w in text for w in ["ai", "ml", "llm", "genai", "gpt", "vector", "langchain"])
             # Recency heuristic
             months_ago = 1 if any(w in text for w in ["1 month", "2 month", "last month", "week ago", "weeks ago"]) \
-                          else 5 if any(w in text for w in ["3 month", "4 month", "5 month", "6 month"]) else 14
+                else 5 if any(w in text for w in ["3 month", "4 month", "5 month", "6 month"]) else 14
             multiplier = 4 if months_ago <= 3 else 2 if months_ago <= 6 else 1
             base = 6 if role == "winner" else 4 if role == "finalist" else 2
-            if ai_ml: base *= 1.5
+            if ai_ml:
+                base *= 1.5
             pts = min(base * multiplier, 40)
             hack_events.append({"name": kw.title(), "role": role, "ai_ml": ai_ml,
-                                 "months_ago": months_ago, "raw_points": base,
-                                 "multiplied_points": pts})
+                                "months_ago": months_ago, "raw_points": base,
+                                "multiplied_points": pts})
             hack_score = min(hack_score + pts, 40)
             break  # one event per pass to avoid over-counting
 
     summary_h = f"{len(hack_events)} hackathon event(s) detected; score {hack_score:.1f}/40." \
-                if hack_events else "No hackathon participation detected."
+        if hack_events else "No hackathon participation detected."
 
     # ── Skills detection ───────────────────────────────────────────────────
     trending = {"llm_genai": any(w in text for w in ["llm", "genai", "gpt", "langchain", "langgraph"]),
                 "vector_db": any(w in text for w in ["vector", "pinecone", "weaviate", "chroma"]),
                 "ai_agents": any(w in text for w in ["agent", "multi-agent", "autonomous"])}
-    langs = [l for l in ["python","typescript","rust","go","java","c++","kotlin","swift","scala"] if l in text]
-    clouds = [c for c in ["aws","gcp","azure","vercel","railway","fly.io"] if c in text]
-    new_tech_count = sum(1 for w in ["next.js","svelte","fastapi","langchain","langgraph",
-                                      "htmx","bun","deno","astro","drizzle"] if w in text)
+    langs = [lang for lang in ["python", "typescript", "rust", "go", "java", "c++", "kotlin", "swift", "scala"] if lang in text]
+    clouds = [c for c in ["aws", "gcp", "azure", "vercel", "railway", "fly.io"] if c in text]
+    new_tech_count = sum(1 for w in ["next.js", "svelte", "fastapi", "langchain", "langgraph",
+                                     "htmx", "bun", "deno", "astro", "drizzle"] if w in text)
     skills_score = min(new_tech_count * 4 + len(langs) * 1.5 + sum(trending.values()) * 3 + len(clouds), 25)
-    summary_s = f"{new_tech_count} new technologies, {len(langs)} languages, trending AI skills: {sum(trending.values())}/3."
+    summary_s = f"{new_tech_count} new technologies, {
+        len(langs)} languages, trending AI skills: {
+        sum(
+            trending.values())}/3."
 
     # ── Certifications ─────────────────────────────────────────────────────
-    cert_keywords = ["certified","certification","aws cert","gcp cert","azure cert",
-                     "bootcamp","course","udemy","coursera","pluralsight","langchain cert"]
+    cert_keywords = ["certified", "certification", "aws cert", "gcp cert", "azure cert",
+                     "bootcamp", "course", "udemy", "coursera", "pluralsight", "langchain cert"]
     certs = [c for c in cert_keywords if c in text]
-    recent_cert = any(w in text for w in ["1 month","2 month","3 month","last month"])
+    recent_cert = any(w in text for w in ["1 month", "2 month", "3 month", "last month"])
     certs_score = min(len(certs) * (5 if recent_cert else 2), 20)
     summary_c = f"{len(certs)} certification/course signal(s) found; recent={recent_cert}."
 
     # ── Recency ────────────────────────────────────────────────────────────
-    high_recency = any(w in text for w in ["last month","this month","week ago","weeks ago",
-                                            "1 month","2 month","3 month"])
-    med_recency  = any(w in text for w in ["4 month","5 month","6 month","recent","recently"])
+    high_recency = any(w in text for w in ["last month", "this month", "week ago", "weeks ago",
+                                           "1 month", "2 month", "3 month"])
+    med_recency = any(w in text for w in ["4 month", "5 month", "6 month", "recent", "recently"])
     recency_score = 13 if high_recency else 8 if med_recency else 3
     velocity = "high" if high_recency else "medium" if med_recency else "low"
     summary_r = f"Velocity level: {velocity}; score {recency_score}/15."
@@ -121,7 +125,7 @@ def _mock_llm(prompt: str) -> str:
     elif node == "skills":
         return json.dumps({
             "new_technologies": [{"name": t, "months_ago": 2, "ai_ml": True, "points": 4}
-                                  for t in ["Next.js","LangChain","FastAPI"] if t.lower() in text][:3],
+                                 for t in ["Next.js", "LangChain", "FastAPI"] if t.lower() in text][:3],
             "languages": langs[:5],
             "cloud_platforms": clouds[:3],
             "trending_skills": trending,
@@ -131,15 +135,15 @@ def _mock_llm(prompt: str) -> str:
     elif node == "certs":
         return json.dumps({
             "certifications": [{"name": c.title(), "provider": "Online", "months_ago": 2 if recent_cert else 8,
-                                 "ai_ml": "ai" in c or "ml" in c, "points": 5 if recent_cert else 2}
-                                for c in certs[:3]],
+                                "ai_ml": "ai" in c or "ml" in c, "points": 5 if recent_cert else 2}
+                               for c in certs[:3]],
             "total_certs_score": round(certs_score, 1),
             "summary": summary_c,
         })
     else:  # recency
         return json.dumps({
             "recent_signals": [{"type": "GitHub", "description": "Active commits", "months_ago": 1}]
-                               if high_recency else [],
+            if high_recency else [],
             "velocity_level": velocity,
             "total_recency_score": recency_score,
             "summary": summary_r,
@@ -149,9 +153,12 @@ def _mock_llm(prompt: str) -> str:
 def _detect_node(prompt: str) -> str:
     """Identify which LangGraph node is calling based on prompt keywords."""
     p = prompt.lower()
-    if "hackathon" in p and "total_hackathon_score" in p: return "hackathon"
-    if "total_skills_score" in p: return "skills"
-    if "total_certs_score" in p: return "certs"
+    if "hackathon" in p and "total_hackathon_score" in p:
+        return "hackathon"
+    if "total_skills_score" in p:
+        return "skills"
+    if "total_certs_score" in p:
+        return "certs"
     return "recency"
 
 
@@ -239,8 +246,10 @@ def _call_llm_legacy(api_key: str, prompt: str) -> str:
 def get_access_token() -> str:
     return _get_api_key()
 
+
 def create_chat(access_token: str) -> str:
     return "openai-compat"   # not used in new flow
+
 
 def call_llm(access_token: str, chat_id: str, prompt: str) -> str:
     return call_llm_openai(prompt)
@@ -468,9 +477,9 @@ def analyze_recency(state: ProfileState) -> ProfileState:
 
 def aggregate_score(state: ProfileState) -> ProfileState:
     hackathon_data = _parse_json(state.get("hackathon_raw", "{}"))
-    skills_data    = _parse_json(state.get("skills_raw", "{}"))
-    certs_data     = _parse_json(state.get("certs_raw", "{}"))
-    recency_data   = _parse_json(state.get("recency_raw", "{}"))
+    skills_data = _parse_json(state.get("skills_raw", "{}"))
+    certs_data = _parse_json(state.get("certs_raw", "{}"))
+    recency_data = _parse_json(state.get("recency_raw", "{}"))
 
     h_score = min(float(hackathon_data.get("total_hackathon_score", 0)), 40)
     s_score = min(float(skills_data.get("total_skills_score", 0)), 25)
@@ -481,21 +490,21 @@ def aggregate_score(state: ProfileState) -> ProfileState:
     total = max(0, min(100, total))
 
     breakdown = {
-        "hackathons":     {"score": round(h_score, 1), "max": 40, "weight": "40%",
-                           "summary": hackathon_data.get("summary", "")},
-        "skills":         {"score": round(s_score, 1), "max": 25, "weight": "25%",
-                           "summary": skills_data.get("summary", "")},
+        "hackathons": {"score": round(h_score, 1), "max": 40, "weight": "40%",
+                       "summary": hackathon_data.get("summary", "")},
+        "skills": {"score": round(s_score, 1), "max": 25, "weight": "25%",
+                   "summary": skills_data.get("summary", "")},
         "certifications": {"score": round(c_score, 1), "max": 20, "weight": "20%",
                            "summary": certs_data.get("summary", "")},
-        "recency":        {"score": round(r_score, 1), "max": 15, "weight": "15%",
-                           "summary": recency_data.get("summary", "")},
+        "recency": {"score": round(r_score, 1), "max": 15, "weight": "15%",
+                    "summary": recency_data.get("summary", "")},
     }
 
     tier = (
-        "🏆 Top Performer"    if total >= 85 else
-        "⭐ High Potential"   if total >= 70 else
-        "✅ Promising"        if total >= 55 else
-        "📋 Standard"        if total >= 40 else
+        "🏆 Top Performer" if total >= 85 else
+        "⭐ High Potential" if total >= 70 else
+        "✅ Promising" if total >= 55 else
+        "📋 Standard" if total >= 40 else
         "🔍 Needs Review"
     )
 
@@ -526,10 +535,10 @@ def build_output(state: ProfileState) -> ProfileState:
         "timestamp": datetime.utcnow().isoformat() + "Z",
         "adaptability_score": state["adaptability_score"],
         "tier": (
-            "Top Performer"  if state["adaptability_score"] >= 85 else
+            "Top Performer" if state["adaptability_score"] >= 85 else
             "High Potential" if state["adaptability_score"] >= 70 else
-            "Promising"      if state["adaptability_score"] >= 55 else
-            "Standard"       if state["adaptability_score"] >= 40 else
+            "Promising" if state["adaptability_score"] >= 55 else
+            "Standard" if state["adaptability_score"] >= 40 else
             "Needs Review"
         ),
         "recommend_interview": state["adaptability_score"] >= 70,
@@ -547,22 +556,22 @@ def build_output(state: ProfileState) -> ProfileState:
 def build_agent_1() -> StateGraph:
     graph = StateGraph(ProfileState)
 
-    graph.add_node("bootstrap",          bootstrap_session)
+    graph.add_node("bootstrap", bootstrap_session)
     graph.add_node("extract_hackathons", extract_hackathons)
-    graph.add_node("analyze_skills",     analyze_skills)
-    graph.add_node("analyze_certs",      analyze_certifications)
-    graph.add_node("analyze_recency",    analyze_recency)
-    graph.add_node("aggregate_score",    aggregate_score)
-    graph.add_node("build_output",       build_output)
+    graph.add_node("analyze_skills", analyze_skills)
+    graph.add_node("analyze_certs", analyze_certifications)
+    graph.add_node("analyze_recency", analyze_recency)
+    graph.add_node("aggregate_score", aggregate_score)
+    graph.add_node("build_output", build_output)
 
     graph.set_entry_point("bootstrap")
-    graph.add_edge("bootstrap",          "extract_hackathons")
+    graph.add_edge("bootstrap", "extract_hackathons")
     graph.add_edge("extract_hackathons", "analyze_skills")
-    graph.add_edge("analyze_skills",     "analyze_certs")
-    graph.add_edge("analyze_certs",      "analyze_recency")
-    graph.add_edge("analyze_recency",    "aggregate_score")
-    graph.add_edge("aggregate_score",    "build_output")
-    graph.add_edge("build_output",       END)
+    graph.add_edge("analyze_skills", "analyze_certs")
+    graph.add_edge("analyze_certs", "analyze_recency")
+    graph.add_edge("analyze_recency", "aggregate_score")
+    graph.add_edge("aggregate_score", "build_output")
+    graph.add_edge("build_output", END)
 
     return graph.compile()
 
@@ -594,17 +603,17 @@ def analyze_profile(
         os.environ["ORG_ID"] = org_id
 
     initial_state: ProfileState = {
-        "profile_text":      profile_text,
-        "access_token":      "",
-        "chat_id":           "",
-        "hackathon_raw":     "",
-        "skills_raw":        "",
-        "certs_raw":         "",
-        "recency_raw":       "",
-        "score_breakdown":   {},
+        "profile_text": profile_text,
+        "access_token": "",
+        "chat_id": "",
+        "hackathon_raw": "",
+        "skills_raw": "",
+        "certs_raw": "",
+        "recency_raw": "",
+        "score_breakdown": {},
         "adaptability_score": 0,
-        "reasoning":         "",
-        "final_output":      {},
+        "reasoning": "",
+        "final_output": {},
     }
     result = agent_1_graph.invoke(initial_state)
     return result["final_output"]

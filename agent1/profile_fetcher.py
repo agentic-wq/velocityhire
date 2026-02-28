@@ -17,7 +17,6 @@ import time
 import random
 import requests
 from bs4 import BeautifulSoup
-from typing import Optional
 
 
 # ── Browser-like headers to avoid trivial bot detection ──────────────────────
@@ -87,7 +86,7 @@ def _extract_linkedin_sections(soup: BeautifulSoup) -> str:
     if len(sections) <= 1:
         body_text = soup.get_text(separator="\n", strip=True)
         # Remove boilerplate navigation lines (first/last ~20 lines are usually nav)
-        lines = [l for l in body_text.splitlines() if len(l.strip()) > 20]
+        lines = [ln for ln in body_text.splitlines() if len(ln.strip()) > 20]
         sections = lines[:120]   # cap at ~120 meaningful lines
 
     return _clean("\n\n".join(str(s) for s in sections))

@@ -18,7 +18,7 @@ import json
 import logging
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
 logger = logging.getLogger("velocityhire.analytics")
 
@@ -84,7 +84,7 @@ def get_pipeline_funnel(company_id: Optional[str] = None) -> Dict:
         from sqlalchemy import text
         clause, params = _cid_clause(company_id)
         with engine.connect() as conn:
-            n_c  = conn.execute(text(f"SELECT COUNT(*) FROM candidates WHERE {clause}"), params).scalar() or 0
+            n_c = conn.execute(text(f"SELECT COUNT(*) FROM candidates WHERE {clause}"), params).scalar() or 0
             n_jm = conn.execute(text(f"SELECT COUNT(*) FROM job_matches WHERE {clause}"), params).scalar() or 0
             n_oc = conn.execute(text(f"SELECT COUNT(*) FROM outreach_campaigns WHERE {clause}"), params).scalar() or 0
 
@@ -104,15 +104,15 @@ def get_pipeline_funnel(company_id: Optional[str] = None) -> Dict:
             ).scalar() or 0
 
         return {
-            "profiles_analyzed":    n_c,
-            "jobs_matched":         n_jm,
-            "campaigns_sent":       n_oc,
-            "priority_candidates":  n_priority,
-            "interview_recommended":n_rec,
-            "match_rate_pct":       round(n_jm / n_c * 100) if n_c else 0,
-            "outreach_rate_pct":    round(n_oc / n_c * 100) if n_c else 0,
-            "priority_rate_pct":    round(n_priority / n_oc * 100) if n_oc else 0,
-            "interview_rate_pct":   round(n_rec / n_c * 100) if n_c else 0,
+            "profiles_analyzed": n_c,
+            "jobs_matched": n_jm,
+            "campaigns_sent": n_oc,
+            "priority_candidates": n_priority,
+            "interview_recommended": n_rec,
+            "match_rate_pct": round(n_jm / n_c * 100) if n_c else 0,
+            "outreach_rate_pct": round(n_oc / n_c * 100) if n_c else 0,
+            "priority_rate_pct": round(n_priority / n_oc * 100) if n_oc else 0,
+            "interview_rate_pct": round(n_rec / n_c * 100) if n_c else 0,
         }
     except Exception as exc:
         logger.error("get_pipeline_funnel: %s", exc)
@@ -126,7 +126,7 @@ def get_score_distribution(company_id: Optional[str] = None) -> Dict:
         return {}
     try:
         rows = _fetch_all(engine, meta, "candidates", company_id)
-        buckets = {f"{i}-{i+9}": 0 for i in range(0, 100, 10)}
+        buckets = {f"{i}-{i + 9}": 0 for i in range(0, 100, 10)}
         buckets["100"] = 0
 
         scores = []
@@ -146,12 +146,12 @@ def get_score_distribution(company_id: Optional[str] = None) -> Dict:
         avg = round(sum(scores) / len(scores), 1) if scores else 0
         return {
             "buckets": buckets,
-            "labels":  list(buckets.keys()),
-            "values":  list(buckets.values()),
+            "labels": list(buckets.keys()),
+            "values": list(buckets.values()),
             "average": avg,
-            "min":     min(scores) if scores else 0,
-            "max":     max(scores) if scores else 0,
-            "count":   len(scores),
+            "min": min(scores) if scores else 0,
+            "max": max(scores) if scores else 0,
+            "count": len(scores),
         }
     except Exception as exc:
         logger.error("get_score_distribution: %s", exc)
@@ -173,7 +173,7 @@ def get_tier_breakdown(company_id: Optional[str] = None) -> Dict:
             "labels": labels,
             "values": values,
             "counts": dict(zip(labels, values)),
-            "total":  sum(values),
+            "total": sum(values),
         }
     except Exception as exc:
         logger.error("get_tier_breakdown: %s", exc)
@@ -274,9 +274,9 @@ def get_avg_scores(company_id: Optional[str] = None) -> Dict:
 
         return {
             "avg_adaptability": round(float(avg_adapt), 1),
-            "avg_job_match":    round(float(avg_match), 1),
-            "avg_role_fit":     round(float(avg_role), 1),
-            "avg_culture_fit":  round(float(avg_culture), 1),
+            "avg_job_match": round(float(avg_match), 1),
+            "avg_role_fit": round(float(avg_role), 1),
+            "avg_culture_fit": round(float(avg_culture), 1),
         }
     except Exception as exc:
         logger.error("get_avg_scores: %s", exc)
@@ -297,29 +297,34 @@ def get_predictive_insights(company_id: Optional[str] = None) -> List[Dict]:
 
         with engine.connect() as conn:
             # High adaptability (80+) → interview rate
-            high_adapt_params  = {**params, "min": 80, "rec": "True"}
-            high_adapt_total   = conn.execute(text(
+            high_adapt_params = {**params, "min": 80, "rec": "True"}
+            high_adapt_total = conn.execute(text(
                 f"SELECT COUNT(*) FROM candidates WHERE {clause} AND adaptability_score >= :min"
             ), high_adapt_params).scalar() or 0
-            high_adapt_rec     = conn.execute(text(
-                f"SELECT COUNT(*) FROM candidates WHERE {clause} AND adaptability_score >= :min AND recommend_interview = :rec"
-            ), high_adapt_params).scalar() or 0
+            high_adapt_rec = conn.execute(
+                text(
+                    f"SELECT COUNT(*) FROM candidates WHERE {clause} AND adaptability_score >= :min AND recommend_interview = :rec"),
+                high_adapt_params).scalar() or 0
 
             # PRIORITY tier → outreach conversion
             priority_total = conn.execute(text(
                 f"SELECT COUNT(*) FROM outreach_campaigns WHERE {clause} AND outreach_tier='PRIORITY'"
             ), params).scalar() or 0
 
-            # Average days between first analysis and outreach (proxy: not calculable without timestamps gap, use counts ratio)
-            total_cands   = conn.execute(text(f"SELECT COUNT(*) FROM candidates WHERE {clause}"), params).scalar() or 0
-            total_outreach= conn.execute(text(f"SELECT COUNT(*) FROM outreach_campaigns WHERE {clause}"), params).scalar() or 0
-            total_matches = conn.execute(text(f"SELECT COUNT(*) FROM job_matches WHERE {clause}"), params).scalar() or 0
+            # Average days between first analysis and outreach (proxy: not calculable
+            # without timestamps gap, use counts ratio)
+            total_cands = conn.execute(text(f"SELECT COUNT(*) FROM candidates WHERE {clause}"), params).scalar() or 0
+            total_outreach = conn.execute(
+                text(
+                    f"SELECT COUNT(*) FROM outreach_campaigns WHERE {clause}"),
+                params).scalar() or 0
 
             # Startup experience correlation with high match
             startup_high_params = {**params, "rec": "True", "su": "True"}
-            startup_high = conn.execute(text(
-                f"SELECT COUNT(*) FROM job_matches WHERE {clause} AND startup_experience = :su AND recommend_interview = :rec"
-            ), startup_high_params).scalar() or 0
+            startup_high = conn.execute(
+                text(
+                    f"SELECT COUNT(*) FROM job_matches WHERE {clause} AND startup_experience = :su AND recommend_interview = :rec"),
+                startup_high_params).scalar() or 0
             startup_total = conn.execute(text(
                 f"SELECT COUNT(*) FROM job_matches WHERE {clause} AND startup_experience = :su"
             ), {**params, "su": "True"}).scalar() or 0
@@ -394,13 +399,13 @@ def get_predictive_insights(company_id: Optional[str] = None) -> List[Dict]:
 def get_full_analytics(company_id: Optional[str] = None) -> Dict:
     """Aggregate all analytics in a single call."""
     return {
-        "company_id":          company_id,
-        "generated_at":        datetime.utcnow().isoformat() + "Z",
-        "funnel":              get_pipeline_funnel(company_id),
-        "score_distribution":  get_score_distribution(company_id),
-        "tier_breakdown":      get_tier_breakdown(company_id),
-        "daily_activity":      get_daily_activity(company_id),
-        "top_skills":          get_top_skills(company_id),
-        "avg_scores":          get_avg_scores(company_id),
+        "company_id": company_id,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "funnel": get_pipeline_funnel(company_id),
+        "score_distribution": get_score_distribution(company_id),
+        "tier_breakdown": get_tier_breakdown(company_id),
+        "daily_activity": get_daily_activity(company_id),
+        "top_skills": get_top_skills(company_id),
+        "avg_scores": get_avg_scores(company_id),
         "predictive_insights": get_predictive_insights(company_id),
     }

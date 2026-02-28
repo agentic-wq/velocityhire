@@ -11,8 +11,12 @@ single end-to-end pipeline with a visually rich UI.
   GET  /health                 → Status check
 """
 
+import re as _re
+import time as _time
+from agent_3 import generate_outreach
+from agent_2 import match_candidate
+from agent_1 import analyze_profile
 import sys
-import json
 import logging
 import threading
 import uuid
@@ -20,18 +24,18 @@ import os
 import concurrent.futures
 from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
-ROOT      = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 WORKSPACE = str(ROOT)
-LOG_DIR   = ROOT / "logs"
+LOG_DIR = ROOT / "logs"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 load_dotenv(ROOT / ".env")
@@ -58,9 +62,6 @@ logging.basicConfig(
 logger = logging.getLogger("velocityhire.demo")
 
 # ── Import agents ─────────────────────────────────────────────────────────────
-from agent_1 import analyze_profile
-from agent_2 import match_candidate
-from agent_3 import generate_outreach
 
 logger.info("All 3 agents imported successfully")
 
@@ -70,8 +71,13 @@ try:
     PROFILE_FETCHER_ENABLED = True
 except ImportError:
     PROFILE_FETCHER_ENABLED = False
+
     def fetch_linkedin_profile(url: str) -> dict:  # noqa: E302
-        return {"success": False, "profile_text": "", "error": "profile_fetcher not available", "source": "linkedin_fetch"}
+        return {
+            "success": False,
+            "profile_text": "",
+            "error": "profile_fetcher not available",
+            "source": "linkedin_fetch"}
 
 # ── Import shared DB & analytics ──────────────────────────────────────────────
 try:
@@ -85,10 +91,10 @@ except ImportError as e:
     DB_ENABLED = False
     logger.warning("DB layer not available: %s", e)
     def save_candidate_score(*a, **kw): return None
-    def save_job_match(*a, **kw):       return None
-    def save_outreach(*a, **kw):        return None
+    def save_job_match(*a, **kw): return None
+    def save_outreach(*a, **kw): return None
     def get_pipeline_summary(*a, **kw): return {}
-    def get_db_stats(*a, **kw):         return {}
+    def get_db_stats(*a, **kw): return {}
 
 try:
     from shared.analytics import get_full_analytics
@@ -108,8 +114,8 @@ try:
     logger.info("ATS integrations module enabled")
 except ImportError:
     ATS_ENABLED = False
-    def ats_normalise(*a, **kw):         return None   # noqa: E704
-    def get_mock_payload(*a, **kw):      return {}     # noqa: E704
+    def ats_normalise(*a, **kw): return None   # noqa: E704
+    def get_mock_payload(*a, **kw): return {}     # noqa: E704
     def ats_list_integrations(*a, **kw): return {}     # noqa: E704
 
 _ats_demo_log: list = []
@@ -127,7 +133,7 @@ app.add_middleware(
 
 # ── Demo data ─────────────────────────────────────────────────────────────────
 DEMO_JOB = {
-    "job_title":       "Senior AI Engineer",
+    "job_title": "Senior AI Engineer",
     "job_description": (
         "We are building the next generation of AI-powered developer tools. "
         "Looking for a senior engineer who can ship fast, work with LLMs, build agents, "
@@ -139,13 +145,13 @@ DEMO_JOB = {
         "Python", "LangChain", "LangGraph", "FastAPI", "React",
         "AWS", "LLM", "Vector DB", "TypeScript",
     ],
-    "company_name":  "VelocityHire",
-    "recruiter_name":"Sarah Chen",
+    "company_name": "VelocityHire",
+    "recruiter_name": "Sarah Chen",
 }
 
 DEMO_CANDIDATES: List[Dict] = [
     {
-        "name":  "Marcus Rivera",
+        "name": "Marcus Rivera",
         "emoji": "🏆",
         "profile": (
             "Marcus Rivera — Senior Software Engineer\n"
@@ -172,7 +178,7 @@ DEMO_CANDIDATES: List[Dict] = [
         ),
     },
     {
-        "name":  "Priya Sharma",
+        "name": "Priya Sharma",
         "emoji": "⭐",
         "profile": (
             "Priya Sharma — ML Engineer\n"
@@ -196,7 +202,7 @@ DEMO_CANDIDATES: List[Dict] = [
         ),
     },
     {
-        "name":  "Alex Chen",
+        "name": "Alex Chen",
         "emoji": "✅",
         "profile": (
             "Alex Chen — Full-Stack Developer\n"
@@ -215,7 +221,7 @@ DEMO_CANDIDATES: List[Dict] = [
         ),
     },
     {
-        "name":  "Jordan Kim",
+        "name": "Jordan Kim",
         "emoji": "📋",
         "profile": (
             "Jordan Kim — Backend Developer\n"
@@ -232,7 +238,7 @@ DEMO_CANDIDATES: List[Dict] = [
         ),
     },
     {
-        "name":  "Elena Voronova",
+        "name": "Elena Voronova",
         "emoji": "🚀",
         "profile": (
             "Elena Voronova — AI Developer (Career Transition)\n"
@@ -264,7 +270,6 @@ _runs: Dict[str, Any] = {}
 _PIPELINE_CACHE: Dict[str, Dict] = {}
 _CACHE_REPLAY_DELAY = 0.35  # seconds per stage during cached replay (keeps animation alive)
 
-import time as _time
 
 _AGENT_TIMEOUT_SECS = 30   # per-agent call timeout; prevents demo hang
 
@@ -279,17 +284,17 @@ def _call_with_timeout(fn, timeout, *args, **kwargs):
 def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
     """Execute all 3 agents for all demo candidates (runs in background thread)."""
     run = _runs[run_id]
-    run["status"]     = "running"
+    run["status"] = "running"
     run["started_at"] = datetime.utcnow().isoformat()
 
     results = []
 
     for idx, cand in enumerate(DEMO_CANDIDATES):
-        name    = cand["name"]
+        name = cand["name"]
         profile = cand["profile"]
 
         run["current_candidate"] = name
-        run["current_idx"]       = idx
+        run["current_idx"] = idx
 
         try:
             _cache_key = f"{name}::{DEMO_JOB['job_title']}"
@@ -305,11 +310,11 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                 # Restore all scores immediately so polls see them
                 _cr = _cached["result"]
                 run["candidates"][idx]["adaptability_score"] = _cr["adaptability_score"]
-                run["candidates"][idx]["adaptability_tier"]  = _cr["adaptability_tier"]
-                run["candidates"][idx]["match_score"]        = _cr["match_score"]
-                run["candidates"][idx]["match_tier"]         = _cr["match_tier"]
-                run["candidates"][idx]["outreach_tier"]      = _cr["outreach_tier"]
-                run["candidates"][idx]["stage"]              = "done"
+                run["candidates"][idx]["adaptability_tier"] = _cr["adaptability_tier"]
+                run["candidates"][idx]["match_score"] = _cr["match_score"]
+                run["candidates"][idx]["match_tier"] = _cr["match_tier"]
+                run["candidates"][idx]["outreach_tier"] = _cr["outreach_tier"]
+                run["candidates"][idx]["stage"] = "done"
                 results.append({**_cr, "name": name, "emoji": cand["emoji"]})
                 logger.info("[%s] ✅ Cached → %s  adapt=%d match=%d tier=%s",
                             run_id, name, _cr["adaptability_score"],
@@ -328,11 +333,11 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                       "recommend_interview": False, "reasoning": "Timeout — default score applied",
                       "score_breakdown": {}}
 
-            adapt_score  = int(a1.get("adaptability_score") or 50)
-            adapt_tier   = a1.get("tier") or "Standard"
+            adapt_score = int(a1.get("adaptability_score") or 50)
+            adapt_tier = a1.get("tier") or "Standard"
 
             run["candidates"][idx]["adaptability_score"] = adapt_score
-            run["candidates"][idx]["adaptability_tier"]  = adapt_tier
+            run["candidates"][idx]["adaptability_tier"] = adapt_tier
 
             try:
                 if DB_ENABLED:
@@ -366,22 +371,22 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                                           "role_fit": {"matched_skills": []},
                                           "culture_fit": {"startup_experience": False}}}
 
-            match_score    = int(a2.get("total_match_score") or 0)
-            match_tier     = a2.get("match_tier") or "Unknown"
-            breakdown      = a2.get("score_breakdown") or {}
+            match_score = int(a2.get("total_match_score") or 0)
+            match_tier = a2.get("match_tier") or "Unknown"
+            breakdown = a2.get("score_breakdown") or {}
             matched_skills = breakdown.get("role_fit", {}).get("matched_skills", []) or []
-            startup_exp    = breakdown.get("culture_fit", {}).get("startup_experience", False)
-            recommend      = bool(a2.get("recommend_interview"))
-            reasoning      = a2.get("reasoning") or ""
+            startup_exp = breakdown.get("culture_fit", {}).get("startup_experience", False)
+            recommend = bool(a2.get("recommend_interview"))
+            reasoning = a2.get("reasoning") or ""
 
             run["candidates"][idx]["match_score"] = match_score
-            run["candidates"][idx]["match_tier"]  = match_tier
+            run["candidates"][idx]["match_tier"] = match_tier
 
             try:
                 if DB_ENABLED:
                     save_job_match({**a2, "candidate_name": name,
                                    "job_title": DEMO_JOB["job_title"]},
-                                  company_id=company_id)
+                                   company_id=company_id)
             except Exception as e:
                 logger.warning("save_job_match non-fatal: %s", e)
 
@@ -418,49 +423,49 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
                                    "recruiter_note": f"Timeout — manual review recommended for {name}"}}
 
             outreach_tier = a3.get("outreach_tier") or "ARCHIVE"
-            campaign      = a3.get("campaign") or {}
+            campaign = a3.get("campaign") or {}
 
             run["candidates"][idx]["outreach_tier"] = outreach_tier
-            run["candidates"][idx]["stage"]         = "done"
+            run["candidates"][idx]["stage"] = "done"
 
             try:
                 if DB_ENABLED:
                     save_outreach({
-                        "candidate_name":     name,
-                        "job_title":          DEMO_JOB["job_title"],
-                        "company_name":       DEMO_JOB["company_name"],
-                        "recruiter_name":     DEMO_JOB["recruiter_name"],
-                        "total_match_score":  match_score,
+                        "candidate_name": name,
+                        "job_title": DEMO_JOB["job_title"],
+                        "company_name": DEMO_JOB["company_name"],
+                        "recruiter_name": DEMO_JOB["recruiter_name"],
+                        "total_match_score": match_score,
                         "adaptability_score": adapt_score,
-                        "outreach_tier":      outreach_tier,
-                        "tone":               a3.get("tone", ""),
-                        "key_highlights":     a3.get("key_highlights", []),
-                        "linkedin_message":   campaign.get("linkedin_message", ""),
-                        "email_subject":      campaign.get("email", {}).get("subject", ""),
-                        "email_body":         campaign.get("email", {}).get("body", ""),
-                        "followup_subject":   campaign.get("followup", {}).get("subject", ""),
-                        "followup_body":      campaign.get("followup", {}).get("body", ""),
-                        "recruiter_note":     campaign.get("recruiter_note", ""),
+                        "outreach_tier": outreach_tier,
+                        "tone": a3.get("tone", ""),
+                        "key_highlights": a3.get("key_highlights", []),
+                        "linkedin_message": campaign.get("linkedin_message", ""),
+                        "email_subject": campaign.get("email", {}).get("subject", ""),
+                        "email_body": campaign.get("email", {}).get("body", ""),
+                        "followup_subject": campaign.get("followup", {}).get("subject", ""),
+                        "followup_body": campaign.get("followup", {}).get("body", ""),
+                        "recruiter_note": campaign.get("recruiter_note", ""),
                     }, company_id=company_id)
             except Exception as e:
                 logger.warning("save_outreach non-fatal: %s", e)
 
             _result_entry = {
-                "name":               name,
-                "emoji":              cand["emoji"],
+                "name": name,
+                "emoji": cand["emoji"],
                 "adaptability_score": adapt_score,
-                "adaptability_tier":  adapt_tier,
-                "match_score":        match_score,
-                "match_tier":         match_tier,
-                "outreach_tier":      outreach_tier,
-                "recommend":          recommend,
-                "key_highlights":     a3.get("key_highlights") or [],
-                "linkedin_message":   campaign.get("linkedin_message", ""),
-                "email_subject":      campaign.get("email", {}).get("subject", ""),
-                "email_body":         campaign.get("email", {}).get("body", ""),
-                "followup_subject":   campaign.get("followup", {}).get("subject", ""),
-                "followup_body":      campaign.get("followup", {}).get("body", ""),
-                "recruiter_note":     campaign.get("recruiter_note", ""),
+                "adaptability_tier": adapt_tier,
+                "match_score": match_score,
+                "match_tier": match_tier,
+                "outreach_tier": outreach_tier,
+                "recommend": recommend,
+                "key_highlights": a3.get("key_highlights") or [],
+                "linkedin_message": campaign.get("linkedin_message", ""),
+                "email_subject": campaign.get("email", {}).get("subject", ""),
+                "email_body": campaign.get("email", {}).get("body", ""),
+                "followup_subject": campaign.get("followup", {}).get("subject", ""),
+                "followup_body": campaign.get("followup", {}).get("body", ""),
+                "recruiter_note": campaign.get("recruiter_note", ""),
             }
             # Store in cache for instant re-runs
             _PIPELINE_CACHE[_cache_key] = {"result": _result_entry}
@@ -475,15 +480,15 @@ def _run_pipeline(run_id: str, company_id: str = "demo") -> None:
             run["candidates"][idx]["error"] = str(exc)
             # Add a graceful partial result so the UI still shows this candidate
             results.append({
-                "name":          name,
-                "emoji":         cand["emoji"],
+                "name": name,
+                "emoji": cand["emoji"],
                 "outreach_tier": "ARCHIVE",
-                "recommend":     False,
-                "error":         str(exc),
+                "recommend": False,
+                "error": str(exc),
             })
 
-    run["status"]       = "done"
-    run["results"]      = results
+    run["status"] = "done"
+    run["results"] = results
     run["completed_at"] = datetime.utcnow().isoformat()
     logger.info("[%s] Pipeline complete — %d/%d candidates processed",
                 run_id, sum(1 for r in results if "error" not in r), len(results))
@@ -1767,10 +1772,10 @@ async def index():
 @app.get("/health")
 async def health():
     return {
-        "status":    "ok",
-        "db":        DB_ENABLED,
+        "status": "ok",
+        "db": DB_ENABLED,
         "analytics": ANALYTICS_ENABLED,
-        "agents":    3,
+        "agents": 3,
         "timestamp": datetime.utcnow().isoformat() + "Z",
     }
 
@@ -1780,10 +1785,10 @@ async def start_run():
     """Kick off a fresh background pipeline run."""
     run_id = str(uuid.uuid4())[:8]
     _runs[run_id] = {
-        "status":            "initializing",
-        "run_id":            run_id,
+        "status": "initializing",
+        "run_id": run_id,
         "current_candidate": None,
-        "current_idx":       -1,
+        "current_idx": -1,
         "candidates": [
             {"name": c["name"], "emoji": c["emoji"], "stage": "waiting"}
             for c in DEMO_CANDIDATES
@@ -1820,9 +1825,8 @@ async def get_results(run_id: str):
     return {"status": run["status"], "results": run.get("results", [])}
 
 
-import re as _re
-
 _HTML_TAG_RE = _re.compile(r'<[^>]{0,200}>')
+
 
 def _strip_html(text: str) -> str:
     """Remove HTML tags to prevent stored/reflected XSS from profile input."""
@@ -1872,7 +1876,7 @@ async def score_one(req: ScoreOneRequest):
                   "recommend_interview": False, "score_breakdown": {}, "reasoning": "Timeout"}
 
         adapt_score = int(a1.get("adaptability_score") or 50)
-        adapt_tier  = a1.get("tier") or "Standard"
+        adapt_tier = a1.get("tier") or "Standard"
 
         # Agent 2
         try:
@@ -1893,12 +1897,12 @@ async def score_one(req: ScoreOneRequest):
                   "score_breakdown": {"role_fit": {"matched_skills": []},
                                       "culture_fit": {"startup_experience": False}}}
 
-        match_score    = int(a2.get("total_match_score") or 0)
-        match_tier     = a2.get("match_tier") or "Unknown"
-        breakdown      = a2.get("score_breakdown") or {}
+        match_score = int(a2.get("total_match_score") or 0)
+        match_tier = a2.get("match_tier") or "Unknown"
+        breakdown = a2.get("score_breakdown") or {}
         matched_skills = breakdown.get("role_fit", {}).get("matched_skills", []) or []
-        startup_exp    = breakdown.get("culture_fit", {}).get("startup_experience", False)
-        recommend      = bool(a2.get("recommend_interview"))
+        startup_exp = breakdown.get("culture_fit", {}).get("startup_experience", False)
+        recommend = bool(a2.get("recommend_interview"))
 
         # Agent 3
         try:
@@ -1926,7 +1930,7 @@ async def score_one(req: ScoreOneRequest):
                                "email": {"subject": "", "body": ""}, "followup": {}, "recruiter_note": ""}}
 
         outreach_tier = a3.get("outreach_tier") or "ARCHIVE"
-        campaign      = a3.get("campaign") or {}
+        campaign = a3.get("campaign") or {}
 
         if DB_ENABLED:
             try:
@@ -1935,17 +1939,17 @@ async def score_one(req: ScoreOneRequest):
                 pass
 
         return JSONResponse(content={
-            "candidate_name":     candidate_name,
+            "candidate_name": candidate_name,
             "adaptability_score": adapt_score,
-            "adaptability_tier":  adapt_tier,
-            "match_score":        match_score,
-            "match_tier":         match_tier,
-            "outreach_tier":      outreach_tier,
-            "recommend":          recommend,
-            "score_breakdown":    a1.get("score_breakdown", {}),
-            "key_highlights":     a3.get("key_highlights", []),
-            "linkedin_message":   campaign.get("linkedin_message", ""),
-            "reasoning":          a1.get("reasoning", ""),
+            "adaptability_tier": adapt_tier,
+            "match_score": match_score,
+            "match_tier": match_tier,
+            "outreach_tier": outreach_tier,
+            "recommend": recommend,
+            "score_breakdown": a1.get("score_breakdown", {}),
+            "key_highlights": a3.get("key_highlights", []),
+            "linkedin_message": campaign.get("linkedin_message", ""),
+            "reasoning": a1.get("reasoning", ""),
             "velocityhire_action": (
                 "🚀 Fast-track to interview" if match_score >= 85 else
                 "✅ Add to interview pipeline" if recommend else
@@ -1975,9 +1979,9 @@ async def fetch_profile(req: FetchRequest):
 @app.get("/ats/integrations")
 async def demo_ats_integrations():
     return JSONResponse(content={
-        "enabled":      ATS_ENABLED,
+        "enabled": ATS_ENABLED,
         "integrations": ats_list_integrations(),
-        "recent_events":_ats_demo_log[:10],
+        "recent_events": _ats_demo_log[:10],
     })
 
 
@@ -1995,9 +1999,9 @@ async def demo_ats_test(provider: str):
     if not normalised:
         raise HTTPException(status_code=500, detail="Normalisation failed")
 
-    profile_text   = normalised["profile_text"]
+    profile_text = normalised["profile_text"]
     candidate_name = normalised["candidate_name"]
-    job_title      = normalised.get("job_title", "Unknown Role")
+    job_title = normalised.get("job_title", "Unknown Role")
 
     result = analyze_profile(profile_text)
 
@@ -2011,30 +2015,30 @@ async def demo_ats_test(provider: str):
 
     sc = result.get("adaptability_score", 0)
     event = {
-        "timestamp":          datetime.utcnow().isoformat() + "Z",
-        "provider":           provider,
-        "candidate_name":     candidate_name,
-        "job_title":          job_title,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+        "provider": provider,
+        "candidate_name": candidate_name,
+        "job_title": job_title,
         "adaptability_score": sc,
-        "tier":               result.get("tier"),
-        "recommend_interview":result.get("recommend_interview"),
+        "tier": result.get("tier"),
+        "recommend_interview": result.get("recommend_interview"),
     }
     _ats_demo_log.insert(0, event)
     if len(_ats_demo_log) > 50:
         _ats_demo_log.pop()
 
     return JSONResponse(content={
-        "status":            "scored",
-        "mock":              True,
-        "provider":          provider,
-        "candidate_name":    candidate_name,
-        "job_title":         job_title,
-        "adaptability_score":sc,
-        "tier":              result.get("tier"),
-        "recommend_interview":result.get("recommend_interview"),
-        "reasoning":         result.get("reasoning", ""),
-        "score_breakdown":   result.get("score_breakdown", {}),
-        "velocityhire_action":(
+        "status": "scored",
+        "mock": True,
+        "provider": provider,
+        "candidate_name": candidate_name,
+        "job_title": job_title,
+        "adaptability_score": sc,
+        "tier": result.get("tier"),
+        "recommend_interview": result.get("recommend_interview"),
+        "reasoning": result.get("reasoning", ""),
+        "score_breakdown": result.get("score_breakdown", {}),
+        "velocityhire_action": (
             "🚀 Fast-track to interview" if sc >= 85 else
             "✅ Add to interview pipeline" if result.get("recommend_interview") else
             "📋 Add to nurture pipeline"
