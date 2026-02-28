@@ -64,6 +64,15 @@ from agent_3 import generate_outreach
 
 logger.info("All 3 agents imported successfully")
 
+# ── Import profile fetcher (optional — graceful fallback) ─────────────────────
+try:
+    from profile_fetcher import fetch_linkedin_profile
+    PROFILE_FETCHER_ENABLED = True
+except ImportError:
+    PROFILE_FETCHER_ENABLED = False
+    def fetch_linkedin_profile(url: str) -> dict:  # noqa: E302
+        return {"success": False, "profile_text": "", "error": "profile_fetcher not available", "source": "linkedin_fetch"}
+
 # ── Import shared DB & analytics ──────────────────────────────────────────────
 try:
     from shared.db_memory import (
@@ -746,6 +755,23 @@ tr:hover td{background:rgba(108,99,255,.04)}
 ::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
+/* ── Scorer LinkedIn URL tab ── */
+.scorer-tabs{display:flex;gap:0;margin-bottom:12px;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.scorer-tab-btn{flex:1;padding:9px;background:var(--surface2);border:none;color:var(--muted);font-size:.82rem;font-weight:600;cursor:pointer;transition:background .2s,color .2s}
+.scorer-tab-btn.active{background:var(--primary);color:#fff}
+.scorer-url-row{display:flex;gap:8px;align-items:center}
+.scorer-url-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:.82rem;padding:11px 13px;outline:none;transition:border-color .2s}
+.scorer-url-input:focus{border-color:var(--primary)}
+.scorer-fetch-btn{padding:11px 16px;background:var(--surface2);border:1px solid var(--primary);border-radius:8px;color:var(--primary);font-size:.82rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .2s}
+.scorer-fetch-btn:hover{background:rgba(108,99,255,.15)}
+.scorer-fetch-btn:disabled{opacity:.5;cursor:not-allowed}
+.scorer-fetch-status{font-size:.75rem;margin-top:7px;padding:7px 11px;border-radius:6px;display:none}
+.scorer-fetch-status.loading{display:block;background:rgba(108,99,255,.1);color:var(--primary)}
+.scorer-fetch-status.ok{display:block;background:rgba(34,197,94,.1);color:#22c55e}
+.scorer-fetch-status.err{display:block;background:rgba(239,68,68,.1);color:#ef4444}
+.scorer-tab-panel{display:none}
+.scorer-tab-panel.active{display:block}
+
 /* ── Mobile responsive ── */
 @media(max-width:720px){
   .hero{padding:36px 16px 32px}
@@ -962,8 +988,38 @@ tr:hover td{background:rgba(108,99,255,.04)}
     <div class="scorer-grid">
       <div>
         <div class="scorer-label">Candidate Profile</div>
-        <textarea class="scorer-textarea" id="scorerInput"
-          placeholder="Paste a LinkedIn-style profile here…
+        <!-- Tab switcher -->
+        <div class="scorer-tabs">
+          <button class="scorer-tab-btn active" onclick="switchScorerTab('url')">🔗 LinkedIn URL</button>
+          <button class="scorer-tab-btn" onclick="switchScorerTab('paste')">📋 Paste Profile</button>
+        </div>
+        <!-- LinkedIn URL tab -->
+        <div class="scorer-tab-panel active" id="scorer-tab-url">
+          <div class="scorer-url-row">
+            <input id="scorerLinkedinUrl" class="scorer-url-input" type="url"
+              placeholder="https://www.linkedin.com/in/username/" autocomplete="off"/>
+            <button class="scorer-fetch-btn" id="scorerFetchBtn" onclick="fetchProfileForScorer()">
+              ⬇ Fetch
+            </button>
+          </div>
+          <div class="scorer-fetch-status" id="scorerFetchStatus"></div>
+          <div id="scorerFetchedPreview" style="display:none;margin-top:10px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+              <span style="font-size:.72rem;color:var(--muted)">📄 Fetched profile (used for scoring)</span>
+              <button onclick="clearScorerFetch()" style="font-size:.7rem;color:#ef4444;background:none;border:none;cursor:pointer">✕ Clear</button>
+            </div>
+            <textarea id="scorerFetchedText" rows="5"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;
+                     color:var(--muted);font-size:.73rem;padding:9px;resize:vertical;outline:none" readonly></textarea>
+          </div>
+          <p style="font-size:.72rem;color:var(--faint);margin-top:8px;line-height:1.5">
+            ℹ️ Works on public profiles. If blocked, switch to <strong>Paste Profile</strong>.
+          </p>
+        </div>
+        <!-- Paste tab -->
+        <div class="scorer-tab-panel" id="scorer-tab-paste">
+          <textarea class="scorer-textarea" id="scorerInput"
+            placeholder="Paste a LinkedIn-style profile here…
 
 Example:
 Jane Smith — Senior ML Engineer
@@ -971,11 +1027,12 @@ Skills: Python, LangChain, FastAPI, AWS, Docker
 Hackathons: AI Builders (1 month ago) — WINNER
 Certs: AWS ML Specialty (2 months ago)
 GitHub: 55 commits last month"></textarea>
-        <div class="scorer-samples">
-          <span style="font-size:.72rem;color:var(--faint);align-self:center">Load sample:</span>
-          <button class="sample-btn" onclick="loadScorerSample('high')">🏆 High velocity</button>
-          <button class="sample-btn" onclick="loadScorerSample('mid')">✅ Mid tier</button>
-          <button class="sample-btn" onclick="loadScorerSample('low')">📋 Low velocity</button>
+          <div class="scorer-samples">
+            <span style="font-size:.72rem;color:var(--faint);align-self:center">Load sample:</span>
+            <button class="sample-btn" onclick="loadScorerSample('high')">🏆 High velocity</button>
+            <button class="sample-btn" onclick="loadScorerSample('mid')">✅ Mid tier</button>
+            <button class="sample-btn" onclick="loadScorerSample('low')">📋 Low velocity</button>
+          </div>
         </div>
         <button class="scorer-btn" id="scorerBtn" onclick="scoreOne()">
           ⚡ Score This Candidate (3 Agents)
@@ -1497,12 +1554,74 @@ No recent learning activity.`,
 };
 
 function loadScorerSample(key) {
+  switchScorerTab('paste');
   document.getElementById('scorerInput').value = SCORER_SAMPLES[key] || '';
+  clearScorerFetch();
+}
+
+/* ── Scorer LinkedIn URL fetch ─────────────────────────────────── */
+let _scorerActiveTab = 'url';
+
+function switchScorerTab(tab) {
+  _scorerActiveTab = tab;
+  document.querySelectorAll('.scorer-tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', (i === 0 && tab === 'url') || (i === 1 && tab === 'paste'));
+  });
+  document.getElementById('scorer-tab-url').classList.toggle('active', tab === 'url');
+  document.getElementById('scorer-tab-paste').classList.toggle('active', tab === 'paste');
+}
+
+async function fetchProfileForScorer() {
+  const url = document.getElementById('scorerLinkedinUrl').value.trim();
+  if (!url) { alert('Please enter a LinkedIn URL.'); return; }
+  const status = document.getElementById('scorerFetchStatus');
+  const btn = document.getElementById('scorerFetchBtn');
+  status.className = 'scorer-fetch-status loading';
+  status.textContent = '⏳ Fetching LinkedIn profile…';
+  btn.disabled = true;
+  document.getElementById('scorerFetchedPreview').style.display = 'none';
+  try {
+    const r = await fetch('/fetch-profile', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url}),
+    });
+    const d = await r.json();
+    if (d.success) {
+      status.className = 'scorer-fetch-status ok';
+      status.textContent = '✅ Profile fetched — ready to score!';
+      document.getElementById('scorerFetchedText').value = d.profile_text;
+      document.getElementById('scorerFetchedPreview').style.display = 'block';
+    } else {
+      status.className = 'scorer-fetch-status err';
+      status.textContent = '⚠️ ' + d.error;
+      switchScorerTab('paste');
+    }
+  } catch(e) {
+    status.className = 'scorer-fetch-status err';
+    status.textContent = '⚠️ Fetch failed — please paste the profile text manually.';
+    switchScorerTab('paste');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function clearScorerFetch() {
+  document.getElementById('scorerFetchedText').value = '';
+  document.getElementById('scorerFetchedPreview').style.display = 'none';
+  document.getElementById('scorerFetchStatus').className = 'scorer-fetch-status';
+  document.getElementById('scorerLinkedinUrl').value = '';
+}
+
+function _getScorerProfileText() {
+  const fetched = document.getElementById('scorerFetchedText');
+  if (fetched && fetched.value.trim()) return fetched.value.trim();
+  return document.getElementById('scorerInput').value.trim();
 }
 
 async function scoreOne() {
-  const text = document.getElementById('scorerInput').value.trim();
-  if (!text) { alert('Please paste a candidate profile first.'); return; }
+  const text = _getScorerProfileText();
+  if (!text) { alert('Please enter a LinkedIn URL or paste a profile first.'); return; }
   const btn = document.getElementById('scorerBtn');
   btn.disabled = true;
   btn.textContent = '⏳ Running 3 agents…';
@@ -1710,6 +1829,10 @@ def _strip_html(text: str) -> str:
     return _HTML_TAG_RE.sub('', text)
 
 
+class FetchRequest(BaseModel):
+    url: str
+
+
 class ScoreOneRequest(BaseModel):
     profile_text: str
 
@@ -1834,6 +1957,17 @@ async def score_one(req: ScoreOneRequest):
     except Exception as exc:
         logger.error("score_one failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/fetch-profile")
+async def fetch_profile(req: FetchRequest):
+    """Fetch and extract text from a public LinkedIn profile URL."""
+    if not req.url.strip():
+        raise HTTPException(status_code=400, detail="url cannot be empty")
+    logger.info("Fetching LinkedIn profile: %s", req.url)
+    result = fetch_linkedin_profile(req.url)
+    logger.info("LinkedIn fetch result: success=%s", result.get("success"))
+    return JSONResponse(content=result)
 
 
 # ── ATS integration proxy routes ──────────────────────────────────────────────
