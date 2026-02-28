@@ -20,6 +20,10 @@ PROVIDER_ID="github-provider"
 SA_NAME="velocityhire-deploy"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
+# Attribute mapping and condition used for both create and update operations
+ATTR_MAPPING="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository"
+ATTR_CONDITION="attribute.repository == '${GITHUB_REPO}'"
+
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  VelocityHire — Workload Identity Federation setup"
 echo "  Project : ${PROJECT_ID}"
@@ -78,20 +82,30 @@ POOL_RESOURCE=$(gcloud iam workload-identity-pools describe "${POOL_ID}" \
   --location=global --project="${PROJECT_ID}" \
   --format="value(name)")
 
-# ── 4. Create the GitHub OIDC provider ────────────────────────────────────────
+# ── 4. Create or update the GitHub OIDC provider ─────────────────────────────
 echo ""
-echo "4/6  Creating OIDC provider '${PROVIDER_ID}' in pool '${POOL_ID}'…"
+echo "4/6  Configuring OIDC provider '${PROVIDER_ID}' in pool '${POOL_ID}'…"
 if gcloud iam workload-identity-pools providers describe "${PROVIDER_ID}" \
      --workload-identity-pool="${POOL_ID}" \
      --location=global --project="${PROJECT_ID}" --quiet 2>/dev/null; then
-  echo "     (already exists — skipping creation)"
+  echo "     (already exists — updating attribute mapping and condition)"
+  # Always update to guarantee the correct mapping and condition are in place.
+  # A previously misconfigured provider causes "rejected by attribute condition"
+  # errors in GitHub Actions even if every secret value is correct.
+  gcloud iam workload-identity-pools providers update-oidc "${PROVIDER_ID}" \
+    --workload-identity-pool="${POOL_ID}" \
+    --location=global \
+    --issuer-uri="https://token.actions.githubusercontent.com" \
+    --attribute-mapping="${ATTR_MAPPING}" \
+    --attribute-condition="${ATTR_CONDITION}" \
+    --project="${PROJECT_ID}" --quiet
 else
   gcloud iam workload-identity-pools providers create-oidc "${PROVIDER_ID}" \
     --workload-identity-pool="${POOL_ID}" \
     --location=global \
     --issuer-uri="https://token.actions.githubusercontent.com" \
-    --attribute-mapping="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository" \
-    --attribute-condition="attribute.repository == '${GITHUB_REPO}'" \
+    --attribute-mapping="${ATTR_MAPPING}" \
+    --attribute-condition="${ATTR_CONDITION}" \
     --project="${PROJECT_ID}" --quiet
 fi
 
@@ -128,4 +142,14 @@ echo ""
 echo "  GCP_WORKLOAD_IDENTITY_PROVIDER"
 echo "    ${PROVIDER_RESOURCE}"
 echo ""
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+echo "  Verifying provider attribute mapping and condition…"
+gcloud iam workload-identity-pools providers describe "${PROVIDER_ID}" \
+  --workload-identity-pool="${POOL_ID}" \
+  --location=global --project="${PROJECT_ID}" \
+  --format="yaml(attributeMapping,attributeCondition)"
+echo ""
+echo "  ✅ attribute.repository must be mapped to assertion.repository"
+echo "  ✅ attributeCondition must include: attribute.repository == '${GITHUB_REPO}'"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

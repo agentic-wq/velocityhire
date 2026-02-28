@@ -295,8 +295,6 @@ tail -f logs/agent3.log  # Outreach Coordinator
 
 ## CI / CD — Deployment Pipeline
 
-**Current deployment status:** ✅ Active — Workload Identity Federation is configured and all GCP secrets are set.
-
 Every commit triggers the **CI / Deploy** GitHub Actions workflow:
 
 ```
@@ -318,22 +316,13 @@ push / pull_request → master
   └─────────────────────────────┘
 ```
 
-### Current deployment status
-
-| Job | Status |
-|-----|--------|
-| Lint & Test | ✅ Passing |
-| Build Docker Image | ✅ Passing |
-| Deploy to Google Cloud Run | ✅ Passing |
-
 Authentication uses **keyless Workload Identity Federation** (no long-lived JSON key).  
 No JSON service-account key is stored anywhere — GitHub's OIDC token is exchanged for
 short-lived GCP credentials at run time.
 
-### GCP-side WIF setup (already completed)
+### GCP-side WIF setup
 
-Workload Identity Federation has been configured for this repository.  
-The script below is provided for reference or to re-create the setup in a new project:
+Run the bundled script once (or re-run it at any time to fix a misconfiguration):
 
 ```bash
 export GCP_PROJECT_ID=my-project-id   # your GCP project
@@ -341,16 +330,75 @@ export GCP_REGION=us-central1          # optional, default us-central1
 bash scripts/setup-wif.sh
 ```
 
-The script performs these steps automatically:
+The script is **fully idempotent** — if the WIF provider already exists it will
+**update** it with the correct attribute mapping and condition rather than
+silently skip it.
 
 | Step | What it does |
 |------|--------------|
 | 1 | Enables `iamcredentials`, `cloudresourcemanager`, `run`, and `artifactregistry` APIs |
 | 2 | Creates service account `velocityhire-deploy@<project>.iam.gserviceaccount.com` with roles `artifactregistry.writer`, `run.admin`, `iam.serviceAccountUser` |
 | 3 | Creates Workload Identity Pool `github-pool` |
-| 4 | Creates GitHub OIDC provider `github-provider` with the attribute condition `attribute.repository == "agentic-wq/velocityhire"` |
+| 4 | Creates **or updates** GitHub OIDC provider `github-provider` with `attribute.repository=assertion.repository` mapping and condition `attribute.repository == "agentic-wq/velocityhire"` |
 | 5 | Binds the service account to the pool so only this repository can impersonate it |
-| 6 | Prints the exact values to paste into GitHub secrets |
+| 6 | Prints the exact values to paste into GitHub secrets + verifies provider config |
+
+After the script completes, add these four secrets in **Settings → Secrets and variables → Actions**:
+
+| Secret name | Value |
+|-------------|-------|
+| `GCP_PROJECT_ID` | Your GCP project ID |
+| `GCP_SERVICE_ACCOUNT` | `velocityhire-deploy@<project>.iam.gserviceaccount.com` |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full provider resource path (printed by the script) |
+| `GCP_REGION` | Region, e.g. `us-central1` (optional) |
+
+### Troubleshooting: "rejected by the attribute condition"
+
+If the deploy job fails with:
+
+```
+google-github-actions/auth failed with: failed to generate Google Cloud federated token …
+{"error":"unauthorized_client","error_description":"The given credential is rejected by the attribute condition."}
+```
+
+This means the WIF provider on GCP does not have the correct attribute mapping or
+condition.  Follow these steps:
+
+1. **Re-run the setup script** — it now always updates the provider:
+   ```bash
+   export GCP_PROJECT_ID=<your-project>
+   bash scripts/setup-wif.sh
+   ```
+   The script output includes a `gcloud … describe` call at the end that shows
+   the live attribute mapping and condition.  Verify both look like:
+   ```
+   attributeCondition: attribute.repository == 'agentic-wq/velocityhire'
+   attributeMapping:
+     attribute.actor: assertion.actor
+     attribute.repository: assertion.repository
+     google.subject: assertion.sub
+   ```
+
+2. **Check the "Decode live OIDC token claims" step** in the failing workflow run.
+   It prints every claim in the GitHub OIDC token.  The `repository` claim must
+   equal `agentic-wq/velocityhire`.
+
+3. **Verify GCP secrets** in **Settings → Secrets and variables → Actions**:
+   - `GCP_WORKLOAD_IDENTITY_PROVIDER` must be the full provider resource path,
+     e.g. `projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider`
+     (use the project **number**, not the project ID).
+   - `GCP_SERVICE_ACCOUNT` must be the full email address of the deployer service
+     account, e.g. `velocityhire-deploy@my-project.iam.gserviceaccount.com`.
+
+4. **Confirm the IAM binding** was applied correctly:
+   ```bash
+   gcloud iam service-accounts get-iam-policy \
+     velocityhire-deploy@<project>.iam.gserviceaccount.com \
+     --project=<project>
+   ```
+   You should see a binding for
+   `principalSet://iam.googleapis.com/…/attribute.repository/agentic-wq/velocityhire`
+   with role `roles/iam.workloadIdentityUser`.
 
 ---
 
