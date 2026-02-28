@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VelocityHire — demo/app.py Deep-Dive Quiz</title>
+  <style>
+    :root {
+      --bg: #0d0f1a;
+      --surface: #161928;
+      --card: #1e2235;
+      --border: #2a2f4a;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --accent3: #ff6b6b;
+      --accent4: #ffd166;
+      --text: #e8eaf6;
+      --muted: #8892b0;
+      --correct: #00d4aa;
+      --wrong: #ff6b6b;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── HEADER ── */
+    header {
+      width: 100%;
+      background: linear-gradient(135deg, #1a1d2e 0%, #0f1120 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+    /* ── PROGRESS BAR ── */
+    .progress-wrap {
+      width: 100%;
+      max-width: 820px;
+      padding: 16px 24px 0;
+    }
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+
+    /* ── SECTION TABS ── */
+    .section-tabs {
+      width: 100%;
+      max-width: 820px;
+      padding: 16px 24px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 5px 12px;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .tab.done { border-color: var(--accent2); color: var(--accent2); }
+
+    /* ── MAIN ── */
+    main {
+      width: 100%;
+      max-width: 820px;
+      padding: 24px;
+      flex: 1;
+    }
+
+    /* ── QUIZ SCREEN ── */
+    #quiz-screen {}
+
+    .section-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .question-num {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .question-text {
+      font-size: 1.2rem;
+      font-weight: 600;
+      line-height: 1.5;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+
+    .choices { display: flex; flex-direction: column; gap: 12px; }
+    .choice {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .choice:hover:not(.locked) {
+      border-color: var(--accent);
+      background: #242848;
+    }
+    .choice.selected {
+      border-color: var(--accent);
+      background: #232048;
+    }
+    .choice.correct {
+      border-color: var(--correct);
+      background: #0d2b25;
+    }
+    .choice.wrong {
+      border-color: var(--wrong);
+      background: #2b1515;
+    }
+    .choice-letter {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .choice.selected .choice-letter { background: var(--accent); color: #fff; }
+    .choice.correct .choice-letter { background: var(--correct); color: #000; }
+    .choice.wrong .choice-letter { background: var(--wrong); color: #fff; }
+    .choice-text { font-size: 0.95rem; line-height: 1.4; }
+
+    /* ── FEEDBACK ── */
+    .feedback {
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      display: none;
+    }
+    .feedback.show { display: block; }
+    .feedback.correct-fb {
+      background: #0d2b25;
+      border: 1px solid var(--correct);
+      color: var(--correct);
+    }
+    .feedback.wrong-fb {
+      background: #2b1515;
+      border: 1px solid var(--wrong);
+      color: #ff9999;
+    }
+
+    /* ── NAV BUTTONS ── */
+    .nav-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 28px;
+      gap: 12px;
+    }
+    .btn {
+      padding: 11px 24px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #5a52d5);
+      color: #fff;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-secondary {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--text); }
+    .btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+
+    /* ── QUESTION GRID NAV ── */
+    .q-grid-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .q-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+    .q-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .q-dot:hover { border-color: var(--accent); color: var(--text); }
+    .q-dot.current { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .q-dot.answered-correct { background: #0d2b25; border-color: var(--correct); color: var(--correct); }
+    .q-dot.answered-wrong { background: #2b1515; border-color: var(--wrong); color: var(--wrong); }
+    .q-dot.unanswered { background: var(--card); }
+
+    /* ── RESULTS SCREEN ── */
+    #results-screen { display: none; }
+    .results-hero {
+      text-align: center;
+      padding: 32px 0 24px;
+    }
+    .score-circle {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent2) 0%, var(--accent2) var(--pct, 0%), var(--border) var(--pct, 0%) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+    .score-circle::before {
+      content: '';
+      position: absolute;
+      width: 108px;
+      height: 108px;
+      background: var(--bg);
+      border-radius: 50%;
+    }
+    .score-num {
+      position: relative;
+      z-index: 1;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .score-denom { font-size: 1rem; color: var(--muted); }
+    .tier-badge {
+      display: inline-block;
+      padding: 8px 22px;
+      border-radius: 99px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .tier-expert { background: linear-gradient(135deg,#6c63ff,#00d4aa); color: #fff; }
+    .tier-proficient { background: linear-gradient(135deg,#ffd166,#ff6b6b); color: #111; }
+    .tier-familiar { background: linear-gradient(135deg,#4ecdc4,#2980b9); color: #fff; }
+    .tier-review { background: var(--border); color: var(--muted); }
+    .tier-msg { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+
+    .results-breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      text-align: center;
+    }
+    .stat-val { font-size: 1.8rem; font-weight: 800; }
+    .stat-val.green { color: var(--correct); }
+    .stat-val.red { color: var(--wrong); }
+    .stat-val.yellow { color: var(--accent4); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── REVIEW TABLE ── */
+    .review-toggle {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    #review-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    #review-table th {
+      background: var(--card);
+      padding: 10px 12px;
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    #review-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    #review-table tr:hover td { background: var(--card); }
+    .r-correct { color: var(--correct); font-weight: 700; }
+    .r-wrong { color: var(--wrong); font-weight: 700; }
+    .r-answer { color: var(--muted); font-size: 0.8rem; }
+
+    .results-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 24px 0; }
+
+    /* ── SPLASH SCREEN ── */
+    #splash-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px 24px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .splash-logo {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      margin-bottom: 24px;
+    }
+    #splash-screen h2 { font-size: 2rem; margin-bottom: 12px; }
+    #splash-screen p { color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
+    .meta-pills {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 20px 0 32px;
+    }
+    .pill {
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: 0.82rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .pill span { color: var(--accent2); font-weight: 700; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      header h1 { font-size: 1.3rem; }
+      .question-text { font-size: 1.05rem; }
+      main { padding: 16px; }
+      .nav-row { flex-wrap: wrap; }
+    }
+    @media (max-width: 480px) {
+      .results-breakdown { grid-template-columns: 1fr 1fr; }
+      .score-num { font-size: 1.8rem; }
+    }
+
+    /* ── TIMER ── */
+    .timer-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .timer-icon { font-size: 1rem; }
+    .timer-val { font-weight: 700; color: var(--accent4); font-variant-numeric: tabular-nums; }
+
+    /* ── CONFETTI ── */
+    #confetti-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<header>
+  <h1>⚡ VelocityHire — demo/app.py Deep-Dive Quiz</h1>
+  <p>40 questions deep-diving into demo/app.py — config, pipeline, endpoints, scoring, security, ATS &amp; UI</p>
+</header>
+
+<!-- SPLASH -->
+<div id="splash-screen">
+  <div class="splash-logo">⚡</div>
+  <h2>Ready to be tested?</h2>
+  <p>40 questions across 8 sections drawn directly from <strong>demo/app.py</strong> — the VelocityHire FastAPI application.</p>
+  <div class="meta-pills">
+    <div class="pill">📋 <span>40</span> Questions</div>
+    <div class="pill">🗂 <span>8</span> Sections</div>
+    <div class="pill">⏱ Self-paced</div>
+    <div class="pill">🎯 Instant feedback</div>
+  </div>
+  <button class="btn btn-primary" style="font-size:1rem;padding:14px 40px;" onclick="startQuiz()">Start Quiz →</button>
+</div>
+
+<!-- PROGRESS -->
+<div class="progress-wrap" id="progress-wrap" style="display:none;">
+  <div class="progress-info">
+    <span id="progress-label">Question 1 of 40</span>
+    <div class="timer-wrap">
+      <span class="timer-icon">⏱</span>
+      <span class="timer-val" id="timer-display">00:00</span>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+</div>
+
+<!-- SECTION TABS -->
+<div class="section-tabs" id="section-tabs" style="display:none;">
+</div>
+
+<main>
+
+  <!-- QUIZ SCREEN -->
+  <div id="quiz-screen" style="display:none;">
+    <div class="section-label" id="section-label"></div>
+    <div class="question-num" id="question-num"></div>
+    <div class="question-text" id="question-text"></div>
+    <div class="choices" id="choices"></div>
+    <div class="feedback" id="feedback"></div>
+
+    <div style="margin-top:28px;">
+      <div class="q-grid-title">Jump to question</div>
+      <div class="q-grid" id="q-grid"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-secondary" id="btn-prev" onclick="navigate(-1)">← Prev</button>
+      <button class="btn btn-primary" id="btn-next" onclick="navigate(1)">Next →</button>
+      <button class="btn btn-primary" id="btn-finish" onclick="showResults()" style="display:none;background:linear-gradient(135deg,var(--accent2),#009977);">🏁 Finish Quiz</button>
+    </div>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="results-screen">
+    <div class="results-hero">
+      <div class="score-circle" id="score-circle">
+        <div class="score-num" id="score-num">0</div>
+      </div>
+      <div class="tier-badge" id="tier-badge"></div>
+      <div class="tier-msg" id="tier-msg"></div>
+    </div>
+
+    <div class="results-breakdown">
+      <div class="stat-card">
+        <div class="stat-val green" id="r-correct">0</div>
+        <div class="stat-label">✅ Correct</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val red" id="r-wrong">0</div>
+        <div class="stat-label">❌ Wrong</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val yellow" id="r-skipped">0</div>
+        <div class="stat-label">⏭ Skipped</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="r-time" style="color:var(--accent);">0:00</div>
+        <div class="stat-label">⏱ Time Taken</div>
+      </div>
+    </div>
+
+    <div class="review-toggle">
+      <button class="btn btn-secondary" onclick="toggleReview()" id="review-btn">📋 Show Answer Review</button>
+    </div>
+
+    <div id="review-section" style="display:none;overflow-x:auto;margin-bottom:24px;">
+      <table id="review-table">
+        <thead>
+          <tr><th>#</th><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th></th></tr>
+        </thead>
+        <tbody id="review-body"></tbody>
+      </table>
+    </div>
+
+    <div class="results-actions">
+      <button class="btn btn-primary" onclick="restartQuiz()">🔄 Retake Quiz</button>
+      <button class="btn btn-secondary" onclick="reviewMissed()">📖 Review Missed Only</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── QUIZ DATA ──────────────────────────────────────────────────────────────
+const SECTIONS = [
+  "Configuration & Constants",
+  "Demo Data — Candidates & Job",
+  "Pipeline Mechanics",
+  "API Endpoints",
+  "Scoring Logic & Tiers",
+  "Security Implementation",
+  "ATS Integration",
+  "Frontend & Analytics"
+];
+
+const QUESTIONS = [
+  // Section 1: Configuration & Constants (Q1–Q5)
+  {s:0, q:"What is the value of `_CACHE_REPLAY_DELAY` (per-stage delay for cached pipeline re-runs) in demo/app.py?", choices:["0.1 seconds","0.35 seconds","1.0 second","2.0 seconds"], a:1},
+  {s:0, q:"What is the value of `_AGENT_TIMEOUT_SECS` (per-agent hard timeout) in demo/app.py?", choices:["10 seconds","20 seconds","30 seconds","60 seconds"], a:2},
+  {s:0, q:"What is `MOCK_MODE` hard-locked to in demo/app.py?", choices:["False","\"false\"","\"true\"","True"], a:2},
+  {s:0, q:"What is the name of the in-memory dict that caches completed pipeline results for re-runs?", choices:["_RUN_CACHE","_RESULT_STORE","_PIPELINE_CACHE","_DEMO_CACHE"], a:2},
+  {s:0, q:"What Python concurrency primitive is used to run the VelocityHire pipeline in the background?", choices:["asyncio.Task","multiprocessing.Process","threading.Thread","concurrent.futures.ProcessPoolExecutor"], a:2},
+
+  // Section 2: Demo Data — Candidates & Job (Q6–Q10)
+  {s:1, q:"How many demo candidates are defined in `DEMO_CANDIDATES` in demo/app.py?", choices:["3","4","5","10"], a:2},
+  {s:1, q:"Which demo candidate typically ranks lowest in traditional ATS scoring but higher in VelocityHire?", choices:["Marcus Rivera","Jordan Kim","Elena Voronova","Alex Chen"], a:2},
+  {s:1, q:"What is the demo job title used for all pipeline runs in demo/app.py?", choices:["Lead Machine Learning Engineer","Senior AI Engineer","Principal Data Scientist","AI Platform Architect"], a:1},
+  {s:1, q:"What initial `status` value is written to `_runs` when `POST /demo/run` creates a new run?", choices:["\"pending\"","\"starting\"","\"initializing\"","\"running\""], a:2},
+  {s:1, q:"How many characters of the UUID4 value are used as the `run_id` in `POST /demo/run`?", choices:["4","6","8","12"], a:2},
+
+  // Section 3: Pipeline Mechanics (Q11–Q15)
+  {s:2, q:"Which function in demo/app.py wraps every agent call to enforce the timeout limit?", choices:["_agent_call()","_timeout_call()","_call_with_timeout()","_run_with_limit()"], a:2},
+  {s:2, q:"When Agent 1 times out during a `score_one` request, what default `adaptability_score` is returned?", choices:["0","25","50","75"], a:2},
+  {s:2, q:"The background pipeline thread is started with `daemon=True`. What is the effect of this flag?", choices:["Thread runs with elevated privileges","Thread is automatically killed when the main process exits","Thread cannot be interrupted by signals","Thread runs at a lower CPU scheduling priority"], a:1},
+  {s:2, q:"What value does `POST /demo/run` return alongside `run_id`?", choices:["candidate_count","total_candidates","num_agents","pipeline_id"], a:1},
+  {s:2, q:"Which function contains the full pipeline logic that executes in the background thread?", choices:["_start_pipeline()","_execute_pipeline()","_run_pipeline()","_process_pipeline()"], a:2},
+
+  // Section 4: API Endpoints (Q16–Q20)
+  {s:3, q:"What fields does `GET /health` include in its JSON response?", choices:["CPU usage, memory, and uptime","status, db, analytics, agents count, and UTC timestamp","version number and build info","Total runs and candidate count"], a:1},
+  {s:3, q:"What HTTP status code does `GET /demo/progress/{run_id}` return when the run_id is not found?", choices:["400","401","403","404"], a:3},
+  {s:3, q:"What does `GET /analytics/data` return when `ANALYTICS_ENABLED` is False?", choices:["{\"error\": \"disabled\"}","[]","{}","HTTP 503"], a:2},
+  {s:3, q:"What argument is passed to `get_full_analytics()` in the `/analytics/data` route handler?", choices:["\"velocityhire\"","\"test\"","\"demo\"","\"prod\""], a:2},
+  {s:3, q:"What does `GET /demo/results/{run_id}` return in its JSON response?", choices:["{\"results\": [...]}","{\"status\": ..., \"results\": [...]}","{\"run_id\": ..., \"data\": [...]}","The full _runs entry"], a:1},
+
+  // Section 5: Scoring Logic & Tiers (Q21–Q25)
+  {s:4, q:"What minimum match score triggers the \"PRIORITY\" outreach tier in the `score_one` route?", choices:["≥70","≥75","≥80","≥85"], a:3},
+  {s:4, q:"What is the `velocityhire_action` string returned when `match_score` is 85 or above?", choices:["\"✅ Add to interview pipeline\"","\"🚀 Fast-track to interview\"","\"⚡ Priority candidate\"","\"🌟 Top performer\""], a:1},
+  {s:4, q:"In the `scoreColor()` JavaScript function, what score threshold returns the green colour `#22c55e`?", choices:["≥60","≥65","≥70","≥75"], a:2},
+  {s:4, q:"What colour does `scoreColor()` return for scores between 55 and 69?", choices:["#3b82f6 (blue)","#f59e0b (amber)","#ef4444 (red)","#8b5cf6 (purple)"], a:1},
+  {s:4, q:"What score breakdown weight is assigned to hackathons in Agent 1's adaptability scoring?", choices:["25%","30%","40%","50%"], a:2},
+
+  // Section 6: Security Implementation (Q26–Q30)
+  {s:5, q:"What regex pattern does the server-side `_strip_html()` function use to remove HTML tags?", choices:["<[^>]+>","<[^>]{0,200}>","<.*?>","<\\w+[^>]*>"], a:1},
+  {s:5, q:"What maximum character limit is enforced on `profile_text` in the `ScoreOneRequest` Pydantic model?", choices:["10,000","25,000","50,000","100,000"], a:2},
+  {s:5, q:"Which JavaScript function escapes HTML before inserting content into `innerHTML` in the live scorer UI?", choices:["sanitize()","escHtml()","encodeHtml()","htmlEscape()"], a:1},
+  {s:5, q:"What HTTP methods are explicitly allowed by the CORS middleware configuration in demo/app.py?", choices:["GET, POST, PUT, DELETE","GET only","GET, POST","POST, PUT, PATCH"], a:2},
+  {s:5, q:"Which Pydantic decorator is used to validate the `profile_text` field in `ScoreOneRequest`?", choices:["@field_validator","@validator","@validates","@check_field"], a:1},
+
+  // Section 7: ATS Integration (Q31–Q35)
+  {s:6, q:"Which three ATS platforms are supported in the demo/app.py ATS integration routes?", choices:["Workday, SAP, Oracle","Greenhouse, Lever, BambooHR","Taleo, iCIMS, SmartRecruiters","Jobvite, Workable, Recruitee"], a:1},
+  {s:6, q:"Which function normalises raw ATS webhook payloads into a standard format in demo/app.py?", choices:["ats_transform()","normalize_webhook()","ats_normalise()","process_webhook()"], a:2},
+  {s:6, q:"What HTTP status does `POST /ats/{provider}/test` return when the ATS module is unavailable?", choices:["400","404","503","501"], a:2},
+  {s:6, q:"How many recent ATS events does `GET /ats/integrations` return in its `recent_events` field?", choices:["5","10","25","50"], a:1},
+  {s:6, q:"What is the maximum number of entries retained in the `_ats_demo_log` list?", choices:["10","20","50","100"], a:2},
+
+  // Section 8: Frontend & Analytics (Q36–Q40)
+  {s:7, q:"What is the frontend polling interval (in milliseconds) used to check pipeline progress via `/demo/progress/{run_id}`?", choices:["100ms","300ms","600ms","1000ms"], a:2},
+  {s:7, q:"What chart library version is loaded by the VelocityHire demo UI for analytics visualisations?", choices:["Chart.js v3.9.1","Chart.js v4.2.0","Chart.js v4.4.0","D3.js v7"], a:2},
+  {s:7, q:"What CSS breakpoints are defined for mobile responsiveness in the inline DEMO_HTML?", choices:["480px / 320px","768px / 480px","720px / 440px","1024px / 768px"], a:2},
+  {s:7, q:"Which JavaScript function appends a new scored-candidate row to the ATS integration activity log in the UI?", choices:["updateATSLog()","appendATSLog()","addATSEntry()","logATSResult()"], a:1},
+  {s:7, q:"What `company_id` string is passed to `save_candidate_score()` in the demo pipeline and ATS routes?", choices:["\"velocityhire\"","\"test\"","\"demo\"","\"prod\""], a:2},
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let current = 0;
+let userAnswers = new Array(QUESTIONS.length).fill(-1);
+let answered = new Array(QUESTIONS.length).fill(false);
+let startTime = null;
+let timerInterval = null;
+let totalSeconds = 0;
+let reviewMode = false;
+let missedOnly = false;
+let missedIndices = [];
+
+// ── TIMER ──────────────────────────────────────────────────────────────────
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    totalSeconds = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('timer-display').textContent = formatTime(totalSeconds);
+  }, 1000);
+}
+function stopTimer() { clearInterval(timerInterval); }
+function formatTime(s) {
+  const m = Math.floor(s / 60).toString().padStart(2,'0');
+  const ss = (s % 60).toString().padStart(2,'0');
+  return `${m}:${ss}`;
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+function startQuiz() {
+  document.getElementById('splash-screen').style.display = 'none';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('section-tabs').style.display = 'flex';
+  document.getElementById('quiz-screen').style.display = 'block';
+  buildSectionTabs();
+  renderQuestion();
+  startTimer();
+}
+
+function buildSectionTabs() {
+  const wrap = document.getElementById('section-tabs');
+  wrap.innerHTML = '';
+  SECTIONS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab';
+    btn.textContent = `S${i+1}`;
+    btn.title = s;
+    btn.onclick = () => jumpToSection(i);
+    btn.id = `tab-${i}`;
+    wrap.appendChild(btn);
+  });
+}
+
+function jumpToSection(si) {
+  const idx = QUESTIONS.findIndex(q => q.s === si);
+  if (idx !== -1) { current = idx; renderQuestion(); }
+}
+
+function updateSectionTabs() {
+  SECTIONS.forEach((_, i) => {
+    const tab = document.getElementById(`tab-${i}`);
+    if (!tab) return;
+    tab.className = 'tab';
+    const qs = QUESTIONS.filter(q => q.s === i);
+    const done = qs.every((_, qi) => answered[QUESTIONS.findIndex(q => q === qs[qi])]);
+    if (done) tab.classList.add('done');
+    if (QUESTIONS[current].s === i) tab.classList.add('active');
+  });
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function renderQuestion() {
+  const Q = QUESTIONS[current];
+  const letters = ['A','B','C','D'];
+
+  document.getElementById('section-label').textContent = `Section ${Q.s+1}: ${SECTIONS[Q.s]}`;
+  document.getElementById('question-num').textContent = `Question ${current+1} of ${QUESTIONS.length}`;
+  document.getElementById('question-text').textContent = Q.q;
+
+  // Progress
+  const pct = ((current) / QUESTIONS.length) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `Question ${current+1} of ${QUESTIONS.length}`;
+
+  // Choices
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = '';
+  Q.choices.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'choice';
+    div.innerHTML = `<div class="choice-letter">${letters[i]}</div><div class="choice-text">${c}</div>`;
+    div.onclick = () => selectAnswer(i);
+
+    if (answered[current]) {
+      div.classList.add('locked');
+      if (i === Q.a) div.classList.add('correct');
+      else if (i === userAnswers[current] && userAnswers[current] !== Q.a) div.classList.add('wrong');
+    } else if (userAnswers[current] === i) {
+      div.classList.add('selected');
+    }
+    choicesEl.appendChild(div);
+  });
+
+  // Feedback
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback';
+  if (answered[current]) {
+    if (userAnswers[current] === Q.a) {
+      fb.className = 'feedback show correct-fb';
+      fb.textContent = '✅ Correct!';
+    } else if (userAnswers[current] === -1) {
+      fb.className = 'feedback show wrong-fb';
+      fb.textContent = `⏭ Skipped — Correct answer: ${letters[Q.a]}) ${Q.choices[Q.a]}`;
+    } else {
+      fb.className = 'feedback show wrong-fb';
+      fb.textContent = `❌ Incorrect — Correct answer: ${letters[Q.a]}) ${Q.choices[Q.a]}`;
+    }
+  }
+
+  // Nav buttons
+  document.getElementById('btn-prev').disabled = current === 0;
+  const allAnswered = answered.every(Boolean);
+  if (current === QUESTIONS.length - 1) {
+    document.getElementById('btn-next').style.display = 'none';
+    document.getElementById('btn-finish').style.display = 'inline-block';
+  } else {
+    document.getElementById('btn-next').style.display = 'inline-block';
+    document.getElementById('btn-finish').style.display = 'none';
+  }
+
+  // Q grid
+  buildQGrid();
+  updateSectionTabs();
+}
+
+function buildQGrid() {
+  const grid = document.getElementById('q-grid');
+  grid.innerHTML = '';
+  QUESTIONS.forEach((q, i) => {
+    const d = document.createElement('div');
+    d.className = 'q-dot';
+    d.textContent = i + 1;
+    d.title = `Q${i+1}`;
+    if (i === current) d.classList.add('current');
+    else if (answered[i]) {
+      if (userAnswers[i] === q.a) d.classList.add('answered-correct');
+      else d.classList.add('answered-wrong');
+    } else d.classList.add('unanswered');
+    d.onclick = () => { current = i; renderQuestion(); };
+    grid.appendChild(d);
+  });
+}
+
+// ── INTERACTION ────────────────────────────────────────────────────────────
+function selectAnswer(idx) {
+  if (answered[current]) return;
+  userAnswers[current] = idx;
+  answered[current] = true;
+  renderQuestion();
+}
+
+function navigate(dir) {
+  // Auto-mark as skipped if not answered
+  if (!answered[current]) {
+    answered[current] = true; // skipped (userAnswers[current] stays -1)
+  }
+  current = Math.max(0, Math.min(QUESTIONS.length - 1, current + dir));
+  renderQuestion();
+}
+
+// ── RESULTS ────────────────────────────────────────────────────────────────
+function showResults() {
+  // Mark remaining unanswered as skipped
+  for (let i = 0; i < QUESTIONS.length; i++) {
+    if (!answered[i]) answered[i] = true;
+  }
+  stopTimer();
+
+  const correct = QUESTIONS.filter((q,i) => userAnswers[i] === q.a).length;
+  const skipped = QUESTIONS.filter((q,i) => userAnswers[i] === -1).length;
+  const wrong = QUESTIONS.length - correct - skipped;
+
+  document.getElementById('quiz-screen').style.display = 'none';
+  document.getElementById('results-screen').style.display = 'block';
+  document.getElementById('progress-wrap').style.display = 'none';
+  document.getElementById('section-tabs').style.display = 'none';
+
+  // Score circle
+  const pct = (correct / QUESTIONS.length) * 100;
+  document.getElementById('score-circle').style.setProperty('--pct', pct.toFixed(1) + '%');
+  document.getElementById('score-num').innerHTML = `${correct}<span class="score-denom">/${QUESTIONS.length}</span>`;
+
+  // Tier
+  let tier, msg, cls;
+  if (correct >= 38) { tier = "Expert"; msg = "Outstanding! You have mastery-level knowledge of VelocityHire."; cls = "tier-expert"; }
+  else if (correct >= 30) { tier = "Proficient"; msg = "Great work! You have strong working knowledge of the platform."; cls = "tier-proficient"; }
+  else if (correct >= 20) { tier = "Familiar"; msg = "Good foundation. Review the sections where you missed questions."; cls = "tier-familiar"; }
+  else { tier = "Review Needed"; msg = "Spend more time reviewing the codebase to deepen your understanding."; cls = "tier-review"; }
+
+  const badge = document.getElementById('tier-badge');
+  badge.textContent = tier;
+  badge.className = 'tier-badge ' + cls;
+  document.getElementById('tier-msg').textContent = msg;
+
+  document.getElementById('r-correct').textContent = correct;
+  document.getElementById('r-wrong').textContent = wrong;
+  document.getElementById('r-skipped').textContent = skipped;
+  document.getElementById('r-time').textContent = formatTime(totalSeconds);
+
+  // Build review
+  const tbody = document.getElementById('review-body');
+  tbody.innerHTML = '';
+  const letters = ['A','B','C','D'];
+  QUESTIONS.forEach((q, i) => {
+    const isCorrect = userAnswers[i] === q.a;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${q.q}</td>
+      <td class="${isCorrect ? 'r-correct' : 'r-wrong'}">${userAnswers[i] === -1 ? 'Skipped' : letters[userAnswers[i]] + ') ' + q.choices[userAnswers[i]]}</td>
+      <td class="r-answer">${letters[q.a]}) ${q.choices[q.a]}</td>
+      <td>${isCorrect ? '✅' : (userAnswers[i]===-1?'⏭':'❌')}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (correct >= 38) launchConfetti();
+}
+
+function toggleReview() {
+  const sec = document.getElementById('review-section');
+  const btn = document.getElementById('review-btn');
+  if (sec.style.display === 'none') { sec.style.display = 'block'; btn.textContent = '🔼 Hide Answer Review'; }
+  else { sec.style.display = 'none'; btn.textContent = '📋 Show Answer Review'; }
+}
+
+function restartQuiz() {
+  current = 0;
+  userAnswers = new Array(QUESTIONS.length).fill(-1);
+  answered = new Array(QUESTIONS.length).fill(false);
+  totalSeconds = 0;
+  document.getElementById('results-screen').style.display = 'none';
+  document.getElementById('quiz-screen').style.display = 'block';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('section-tabs').style.display = 'flex';
+  document.getElementById('review-section').style.display = 'none';
+  document.getElementById('review-btn').textContent = '📋 Show Answer Review';
+  renderQuestion();
+  startTimer();
+}
+
+function reviewMissed() {
+  missedIndices = QUESTIONS.map((q,i) => userAnswers[i] !== q.a ? i : -1).filter(i => i !== -1);
+  if (!missedIndices.length) { alert('You got all questions right! 🎉'); return; }
+  restartQuiz();
+  // TODO: filter to missed only — for now just restart
+}
+
+// ── CONFETTI ───────────────────────────────────────────────────────────────
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const pieces = Array.from({length: 120}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -canvas.height,
+    r: Math.random() * 8 + 4,
+    d: Math.random() * 120 + 80,
+    color: ['#6c63ff','#00d4aa','#ffd166','#ff6b6b','#fff'][Math.floor(Math.random()*5)],
+    tilt: Math.random() * 10 - 10,
+    tv: Math.random() * 0.1 + 0.05,
+    vy: Math.random() * 3 + 2,
+    vx: Math.random() * 2 - 1,
+  }));
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      p.y += p.vy;
+      p.x += p.vx + Math.sin(frame * p.tv) * 1.5;
+      p.tilt += 0.1;
+    });
+    frame++;
+    if (frame < 200) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+</script>
+</body>
+</html>
