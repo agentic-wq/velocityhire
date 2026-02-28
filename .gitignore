@@ -6,6 +6,8 @@ __pycache__/
 *.log
 logs/
 downloads/
+docs/
+repo_clone/
 velocityhire.db
 =2.0.0
 *.db-shm
