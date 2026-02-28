@@ -2,6 +2,8 @@
 
 > **Complete.dev Hackathon 2026** · Built with LangGraph · Multi-agent · Multi-tenant
 
+[![CI / Deploy](https://github.com/agentic-wq/velocityhire/actions/workflows/deploy.yml/badge.svg?branch=master)](https://github.com/agentic-wq/velocityhire/actions/workflows/deploy.yml)
+
 VelocityHire identifies candidates with the highest **learning velocity** — not just years of experience.
 Three LangGraph agents collaborate to score adaptability, match candidates to roles, and generate
 personalised outreach campaigns automatically.
@@ -316,15 +318,51 @@ push / pull_request → master
   └─────────────────────────────┘
 ```
 
-### When does the first deployment happen?
+### Current deployment status
 
-**The first deployment fires automatically the moment this branch is merged into `master`.**  
-That merge commit triggers a `push` event on `master`, which passes through Lint → Build → Deploy in sequence.
+| Job | Status |
+|-----|--------|
+| Lint & Test | ✅ Passing |
+| Build Docker Image | ✅ Passing |
+| Deploy to Google Cloud Run | ❌ Failing — see below |
+
+The deploy job fails at the **Authenticate to Google Cloud** step with:
+
+```
+unauthorized_client: The given credential is rejected by the attribute condition.
+```
+
+This means the GCP Workload Identity Federation (WIF) provider's **attribute condition**
+does not match the claims in the GitHub Actions OIDC token.
+
+#### How to fix
+
+1. Open the GCP console → **IAM & Admin → Workload Identity Federation**.
+2. Select the pool used by this repository and click on the GitHub provider.
+3. Verify the **Attribute Conditions** expression. It must match the values the
+   workflow prints in the *"Show OIDC token claims"* step.  The recommended condition is:
+
+   ```
+   attribute.repository == "agentic-wq/velocityhire"
+   ```
+
+   If the condition uses a different claim (e.g. `attribute.sub` or `attribute.ref`),
+   update it to the expression above.
+
+4. Also confirm the **Attribute Mappings** include:
+
+   ```
+   google.subject        = assertion.sub
+   attribute.repository  = assertion.repository
+   attribute.actor       = assertion.actor
+   attribute.ref         = assertion.ref
+   ```
+
+5. Push any commit to `master` — the deploy job will retry automatically.
 
 ### Required repository secrets
 
-Before merging, add the following secrets under  
-**Settings → Secrets and variables → Actions**:
+Add the following secrets under **Settings → Secrets and variables → Actions**:
 
 | Secret | Description |
 |--------|-------------|
