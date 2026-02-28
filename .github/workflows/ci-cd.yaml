@@ -106,6 +106,40 @@ jobs:
           echo "Expected WIF attribute condition:"
           echo "  attribute.repository == \"${{ github.repository }}\""
 
+      - name: Decode live OIDC token claims
+        run: |
+          python3 - <<'PYEOF'
+          import urllib.request, json, base64, os
+          url   = os.environ.get('ACTIONS_ID_TOKEN_REQUEST_URL', '')
+          token = os.environ.get('ACTIONS_ID_TOKEN_REQUEST_TOKEN', '')
+          if not url or not token:
+              # These variables are only populated when id-token: write permission
+              # is granted to the job, which is already set above.  If they are
+              # missing something unexpected changed in the runner environment.
+              print("::warning::OIDC env vars not found — id-token permission may not be active")
+              raise SystemExit(0)
+          # Request the token with an arbitrary audience just for inspection;
+          # this is separate from the token google-github-actions/auth requests
+          # (which uses the WIF provider URL as audience for the actual exchange).
+          req = urllib.request.Request(
+              f"{url}&audience=debug",
+              headers={"Authorization": f"bearer {token}"}
+          )
+          jwt = json.loads(urllib.request.urlopen(req).read())['value']
+          payload_b64 = jwt.split('.')[1]
+          payload_b64 += '=' * (4 - len(payload_b64) % 4)
+          claims = json.loads(base64.urlsafe_b64decode(payload_b64))
+          print("Live OIDC token claims GitHub is sending to GCP:")
+          for k, v in sorted(claims.items()):
+              print(f"  {k}: {v}")
+          print()
+          print("Your WIF provider attribute condition MUST match:")
+          print(f"  attribute.repository == \"{claims.get('repository', 'N/A')}\"")
+          print()
+          print("Your WIF provider attribute mapping MUST include:")
+          print("  attribute.repository = assertion.repository")
+          PYEOF
+
       - name: Authenticate to Google Cloud via Workload Identity Federation
         uses: google-github-actions/auth@v2
         with:
