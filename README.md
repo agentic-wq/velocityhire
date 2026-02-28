@@ -333,7 +333,15 @@ unauthorized_client: The given credential is rejected by the attribute condition
 This means the GCP Workload Identity Federation (WIF) provider's **attribute condition**
 does not match the claims in the GitHub Actions OIDC token.
 
-#### How to fix
+#### Option A — Use a service account key (quickest fix)
+
+1. Create or download a service account key JSON in the GCP console
+   (**IAM & Admin → Service Accounts → your deploy SA → Keys → Add Key → JSON**).
+2. Add the entire JSON as the `GCP_SA_KEY` repository secret
+   (**Settings → Secrets and variables → Actions → New repository secret**).
+3. Push any commit to `master` — the deploy job will use the key directly and bypass WIF.
+
+#### Option B — Fix the Workload Identity Federation attribute condition
 
 1. Open the GCP console → **IAM & Admin → Workload Identity Federation**.
 2. Select the pool used by this repository and click on the GitHub provider.
@@ -364,12 +372,14 @@ Add the following secrets under **Settings → Secrets and variables → Actions
 
 | Secret | Description |
 |--------|-------------|
-| `GCP_WORKLOAD_IDENTITY_PROVIDER` | Full WIF provider resource name, e.g. `projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
-| `GCP_SERVICE_ACCOUNT` | Service account email to impersonate, e.g. `deploy@my-project.iam.gserviceaccount.com` |
 | `GCP_PROJECT_ID` | GCP project ID |
 | `GCP_REGION` *(optional)* | Artifact Registry / Cloud Run region — defaults to `us-central1` |
+| `GCP_SA_KEY` | *(recommended)* Service account key JSON for direct authentication — avoids WIF entirely |
+| `GCP_WORKLOAD_IDENTITY_PROVIDER` | *(alternative to GCP_SA_KEY)* Full WIF provider resource name, e.g. `projects/123456789/locations/global/workloadIdentityPools/github-pool/providers/github-provider` |
+| `GCP_SERVICE_ACCOUNT` | *(required with WIF)* Service account email to impersonate, e.g. `deploy@my-project.iam.gserviceaccount.com` |
 
-Authentication uses **keyless Workload Identity Federation** (no long-lived JSON key).
+**Authentication priority:** If `GCP_SA_KEY` is set it takes precedence and WIF is not used.
+When using `GCP_SA_KEY`, `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` are not required.
 
 ---
 
