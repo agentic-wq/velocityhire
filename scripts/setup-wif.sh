@@ -19,6 +19,7 @@ POOL_ID="github-pool"
 PROVIDER_ID="github-provider"
 SA_NAME="velocityhire-deploy"
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
+SERVICE_NAME="velocityhire"
 
 # Attribute mapping and condition used for both create and update operations
 ATTR_MAPPING="google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository"
@@ -114,19 +115,33 @@ PROVIDER_RESOURCE=$(gcloud iam workload-identity-pools providers describe "${PRO
   --location=global --project="${PROJECT_ID}" \
   --format="value(name)")
 
-# ── 5. Bind the service account to the WIF pool ───────────────────────────────
+# ── 5. Create the Artifact Registry repository ───────────────────────────────
 echo ""
-echo "5/6  Binding service account to WIF pool…"
+echo "5/7  Ensuring Artifact Registry repository '${SERVICE_NAME}' exists in ${REGION}…"
+if gcloud artifacts repositories describe "${SERVICE_NAME}" \
+     --location="${REGION}" --project="${PROJECT_ID}" --quiet 2>/dev/null; then
+  echo "     (already exists — skipping creation)"
+else
+  gcloud artifacts repositories create "${SERVICE_NAME}" \
+    --repository-format=docker \
+    --location="${REGION}" \
+    --description="VelocityHire Docker images" \
+    --project="${PROJECT_ID}" --quiet
+fi
+
+# ── 6. Bind the service account to the WIF pool ───────────────────────────────
+echo ""
+echo "6/7  Binding service account to WIF pool…"
 gcloud iam service-accounts add-iam-policy-binding "${SA_EMAIL}" \
   --project="${PROJECT_ID}" \
   --role="roles/iam.workloadIdentityUser" \
   --member="principalSet://iam.googleapis.com/${POOL_RESOURCE}/attribute.repository/${GITHUB_REPO}" \
   --quiet
 
-# ── 6. Print GitHub secret values ─────────────────────────────────────────────
+# ── 7. Print GitHub secret values ─────────────────────────────────────────────
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  6/6  Done! Add these as GitHub Actions secrets:"
+echo "  7/7  Done! Add these as GitHub Actions secrets:"
 echo "       Settings → Secrets and variables → Actions"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""

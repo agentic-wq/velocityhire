@@ -340,8 +340,9 @@ silently skip it.
 | 2 | Creates service account `velocityhire-deploy@<project>.iam.gserviceaccount.com` with roles `artifactregistry.writer`, `run.admin`, `iam.serviceAccountUser` |
 | 3 | Creates Workload Identity Pool `github-pool` |
 | 4 | Creates **or updates** GitHub OIDC provider `github-provider` with `attribute.repository=assertion.repository` mapping and condition `attribute.repository == "agentic-wq/velocityhire"` |
-| 5 | Binds the service account to the pool so only this repository can impersonate it |
-| 6 | Prints the exact values to paste into GitHub secrets + verifies provider config |
+| 5 | Creates the `velocityhire` Artifact Registry Docker repository (idempotent — skipped if already exists) |
+| 6 | Binds the service account to the pool so only this repository can impersonate it |
+| 7 | Prints the exact values to paste into GitHub secrets + verifies provider config |
 
 After the script completes, add these four secrets in **Settings → Secrets and variables → Actions**:
 
