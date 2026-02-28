@@ -293,6 +293,8 @@ tail -f logs/agent3.log  # Outreach Coordinator
 
 ## CI / CD — Deployment Pipeline
 
+**Current deployment status:** ⚠️ Awaiting GCP secret configuration — see [Required repository secrets](#required-repository-secrets) below.
+
 Every commit triggers the **CI / Deploy** GitHub Actions workflow:
 
 ```

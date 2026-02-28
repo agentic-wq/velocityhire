@@ -91,7 +91,7 @@ jobs:
 
       - name: Compute image path
         run: |
-          echo "IMAGE=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/velocityhire/velocityhire" >> "$GITHUB_ENV"
+          echo "IMAGE=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${SERVICE_NAME}/${SERVICE_NAME}" >> "$GITHUB_ENV"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -104,6 +104,15 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker ${GCP_REGION}-docker.pkg.dev --quiet
+
+      - name: Ensure Artifact Registry repository exists
+        run: |
+          gcloud artifacts repositories describe ${SERVICE_NAME} \
+            --location=${GCP_REGION} --quiet 2>/dev/null || \
+          gcloud artifacts repositories create ${SERVICE_NAME} \
+            --repository-format=docker \
+            --location=${GCP_REGION} \
+            --quiet
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
