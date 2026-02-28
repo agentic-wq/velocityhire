@@ -296,7 +296,7 @@ tail -f logs/agent3.log  # Outreach Coordinator
 Every commit triggers the **CI / Deploy** GitHub Actions workflow:
 
 ```
-push / pull_request → main
+push / pull_request → master
          │
          ▼
   ┌─────────────┐
@@ -306,7 +306,7 @@ push / pull_request → main
   ┌─────────────┐
   │    Build    │  docker build (all branches — smoke-test only)
   └──────┬──────┘
-         │ only on push to main ↓
+         │ only on push to master ↓
          ▼
   ┌─────────────────────────────┐
   │ Deploy to Google Cloud Run  │  push image → Artifact Registry
@@ -316,8 +316,8 @@ push / pull_request → main
 
 ### When does the first deployment happen?
 
-**The first deployment fires automatically the moment this branch is merged into `main`.**  
-That merge commit triggers a `push` event on `main`, which passes through Lint → Build → Deploy in sequence.
+**The first deployment fires automatically the moment this branch is merged into `master`.**  
+That merge commit triggers a `push` event on `master`, which passes through Lint → Build → Deploy in sequence.
 
 ### Required repository secrets
 
