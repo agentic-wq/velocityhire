@@ -1,7 +1,10 @@
-name: CI / Deploy (legacy — see ci-cd.yaml)
+name: CI / CD
 
 on:
-  workflow_dispatch:  # manual trigger only; automated CI/CD is in ci-cd.yaml
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
   lint-and-test:
@@ -31,6 +34,8 @@ jobs:
 
       - name: Run tests
         run: |
+          # Exit code 5 means "no tests collected"; treat as success so the
+          # pipeline is not blocked when the test suite is empty.
           pytest --tb=short -q || { code=$?; [ $code -eq 5 ] && exit 0; exit $code; }
 
   build:
@@ -61,7 +66,7 @@ jobs:
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     permissions:
       contents: read
-      id-token: write
+      id-token: write   # required for Workload Identity Federation
 
     env:
       GCP_REGION: ${{ secrets.GCP_REGION || 'us-central1' }}
@@ -101,6 +106,9 @@ jobs:
           echo "Expected WIF attribute condition:"
           echo "  attribute.repository == \"${{ github.repository }}\""
 
+      # Authenticate to Google Cloud using Workload Identity Federation.
+      # GitHub's OIDC token is exchanged for short-lived GCP credentials —
+      # no long-lived service account key is stored anywhere.
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
