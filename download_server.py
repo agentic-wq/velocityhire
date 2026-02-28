@@ -1,0 +1,141 @@
+"""
+VelocityHire — File Download Server
+Serves generated marketing documents for download.
+"""
+from fastapi import FastAPI
+from fastapi.responses import FileResponse, HTMLResponse
+from pathlib import Path
+import uvicorn
+
+app = FastAPI()
+
+BASE = Path("/mnt/efs/spaces/ba7ac73e-4169-4c04-979f-f044d06ab63e/e6e0512b-be61-46c7-9040-5f5821ef1dce")
+
+FILES = [
+    {"name": "velocityhire_all_files.zip",        "label": "📦 ALL FILES (ZIP)",           "desc": "Complete workspace — all code, docs, PDFs, PPTX & marketing materials in one zip", "highlight": True},
+    {"name": "velocityhire_marketing_plan.pdf",   "label": "📄 Marketing Plan (PDF)",      "desc": "Full marketing campaign plan with social posts, outreach templates & strategy"},
+    {"name": "velocityhire_pitch_deck.pdf",        "label": "📊 Pitch Deck (PDF)",          "desc": "10-slide pitch deck — ready to present to hackathon judges"},
+    {"name": "velocityhire_pitch_deck.pptx",       "label": "🖥️ Pitch Deck (PowerPoint)",   "desc": "Editable dark-theme PowerPoint — 10 slides, yellow accent branding"},
+    {"name": "velocityhire_marketing_plan.md",     "label": "📝 Marketing Plan (Markdown)", "desc": "Source markdown — all campaign copy, messaging & recruitment outreach"},
+    {"name": "velocityhire_pitch_deck.md",         "label": "📝 Pitch Deck (Markdown)",     "desc": "Source markdown — full slide content & speaker notes"},
+]
+
+@app.get("/", response_class=HTMLResponse)
+def index():
+    cards = ""
+    for f in FILES:
+        path = BASE / f["name"]
+        size = f"{path.stat().st_size // 1024} KB" if path.exists() else "—"
+        highlight_style = "border-color:#FFD700; background:#1A1A2E;" if f.get("highlight") else ""
+        btn_style = "background:#0D0D1A; color:#FFD700; border:2px solid #FFD700;" if f.get("highlight") else ""
+        cards += f"""
+        <div class="card" style="{highlight_style}">
+          <div class="card-info">
+            <div class="card-label">{f['label']}</div>
+            <div class="card-desc">{f['desc']}</div>
+            <div class="card-size">{size}</div>
+          </div>
+          <a class="btn" href="/download/{f['name']}" download="{f['name']}" style="{btn_style}">⬇ Download</a>
+        </div>"""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>⚡ VelocityHire — Downloads</title>
+  <style>
+    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0D0D1A;
+      color: #E0E0F0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 48px;
+    }}
+    header {{
+      width: 100%;
+      max-width: 780px;
+      padding: 40px 0 32px;
+      border-bottom: 3px solid #FFD700;
+      margin-bottom: 36px;
+    }}
+    .logo {{ font-size: 2rem; font-weight: 900; color: #FFD700; letter-spacing: -1px; }}
+    .subtitle {{ font-size: 0.95rem; color: #888AAA; margin-top: 6px; }}
+    .badge {{
+      display: inline-block;
+      background: #1E1E3A;
+      color: #FFD700;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      border: 1px solid #FFD700;
+      margin-top: 10px;
+      letter-spacing: 0.05em;
+    }}
+    .grid {{ width: 100%; max-width: 780px; display: flex; flex-direction: column; gap: 14px; }}
+    .card {{
+      background: #13132A;
+      border: 1px solid #2A2A4A;
+      border-radius: 12px;
+      padding: 20px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 20px;
+      transition: border-color 0.2s, transform 0.15s;
+    }}
+    .card:hover {{ border-color: #FFD700; transform: translateY(-1px); }}
+    .card-info {{ flex: 1; }}
+    .card-label {{ font-size: 1.05rem; font-weight: 700; color: #FFFFFF; }}
+    .card-desc {{ font-size: 0.85rem; color: #888AAA; margin-top: 4px; line-height: 1.4; }}
+    .card-size {{ font-size: 0.78rem; color: #FFD700; margin-top: 6px; font-weight: 600; }}
+    .btn {{
+      background: #FFD700;
+      color: #0D0D1A;
+      font-weight: 800;
+      font-size: 0.88rem;
+      padding: 10px 22px;
+      border-radius: 8px;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: background 0.2s, transform 0.15s;
+      flex-shrink: 0;
+    }}
+    .btn:hover {{ background: #FFC107; transform: scale(1.03); }}
+    footer {{
+      margin-top: 48px;
+      font-size: 0.78rem;
+      color: #44445A;
+      text-align: center;
+    }}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">⚡ VelocityHire</div>
+    <div class="subtitle">Complete.dev AI Agent Hackathon 2026 — Marketing Documents</div>
+    <div class="badge">HACKATHON SUBMISSION · FEB 2026</div>
+  </header>
+  <div class="grid">{cards}</div>
+  <footer>Generated by VelocityHire Marketing Suite · deploy.ai</footer>
+</body>
+</html>"""
+
+@app.get("/download/{filename}")
+def download(filename: str):
+    path = BASE / filename
+    if not path.exists():
+        return HTMLResponse("File not found", status_code=404)
+    return FileResponse(
+        path=str(path),
+        filename=filename,
+        media_type="application/octet-stream"
+    )
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=3005)
