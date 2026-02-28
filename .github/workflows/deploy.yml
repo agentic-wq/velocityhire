@@ -93,6 +93,17 @@ jobs:
         run: |
           echo "IMAGE=${GCP_REGION}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/velocityhire/velocityhire" >> "$GITHUB_ENV"
 
+      - name: Show OIDC token claims (for WIF attribute condition debugging)
+        run: |
+          echo "repository:       ${{ github.repository }}"
+          echo "ref:              ${{ github.ref }}"
+          echo "actor:            ${{ github.actor }}"
+          echo "workflow:         ${{ github.workflow }}"
+          echo "event_name:       ${{ github.event_name }}"
+          echo "---"
+          echo "Expected WIF attribute condition:"
+          echo "  attribute.repository == \"${{ github.repository }}\""
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
