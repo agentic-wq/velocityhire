@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VelocityHire — Quiz Hub</title>
+  <style>
+    :root {
+      --bg: #0d0f1a;
+      --surface: #161928;
+      --card: #1e2235;
+      --border: #2a2f4a;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --accent3: #ff6b6b;
+      --accent4: #ffd166;
+      --text: #e8eaf6;
+      --muted: #8892b0;
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── HEADER ── */
+    header {
+      width: 100%;
+      background: linear-gradient(135deg, #1a1d2e 0%, #0f1120 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 28px 24px;
+      text-align: center;
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      margin: 0 auto 16px;
+    }
+    header h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    header p { color: var(--muted); font-size: 0.95rem; max-width: 480px; margin: 0 auto; line-height: 1.6; }
+
+    /* ── MAIN ── */
+    main {
+      width: 100%;
+      max-width: 780px;
+      padding: 48px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .hub-label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--muted);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    /* ── QUIZ CARDS ── */
+    .quiz-card {
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+    .quiz-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.25s;
+    }
+    .quiz-card.card-docs::before {
+      background: linear-gradient(135deg, rgba(0,212,170,0.07) 0%, transparent 60%);
+    }
+    .quiz-card.card-demo::before {
+      background: linear-gradient(135deg, rgba(108,99,255,0.09) 0%, transparent 60%);
+    }
+    .quiz-card.card-arch::before {
+      background: linear-gradient(135deg, rgba(245,158,11,0.08) 0%, transparent 60%);
+    }
+    .quiz-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    }
+    .quiz-card:hover::before { opacity: 1; }
+    .quiz-card.card-docs:hover { border-color: var(--accent2); }
+    .quiz-card.card-demo:hover { border-color: var(--accent); }
+    .quiz-card.card-arch:hover { border-color: #f59e0b; }
+
+    .card-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.8rem;
+      flex-shrink: 0;
+    }
+    .card-docs .card-icon { background: linear-gradient(135deg, #003d33, #00d4aa22); border: 1px solid #00d4aa44; }
+    .card-demo .card-icon { background: linear-gradient(135deg, #1a1540, #6c63ff22); border: 1px solid #6c63ff44; }
+    .card-arch .card-icon { background: linear-gradient(135deg, #3d2800, #f59e0b22); border: 1px solid #f59e0b44; }
+
+    .card-body { flex: 1; }
+    .card-tag {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      padding: 3px 10px;
+      border-radius: 99px;
+      margin-bottom: 10px;
+    }
+    .card-docs .card-tag { background: rgba(0,212,170,0.12); color: var(--accent2); }
+    .card-demo .card-tag { background: rgba(108,99,255,0.12); color: var(--accent); }
+    .card-arch .card-tag { background: rgba(245,158,11,0.12); color: #f59e0b; }
+
+    .card-body h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+    .card-body p  { color: var(--muted); font-size: 0.88rem; line-height: 1.6; margin-bottom: 16px; }
+
+    .card-meta {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .meta-chip {
+      padding: 4px 12px;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+
+    .card-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      align-self: center;
+      transition: all 0.2s;
+    }
+    .quiz-card:hover .card-arrow { transform: translateX(4px); }
+    .card-docs:hover .card-arrow { background: rgba(0,212,170,0.12); border-color: var(--accent2); }
+    .card-demo:hover .card-arrow { background: rgba(108,99,255,0.12); border-color: var(--accent); }
+    .card-arch:hover .card-arrow { background: rgba(245,158,11,0.12); border-color: #f59e0b; }
+
+    /* ── SECTION BREAKDOWN ── */
+    .sections-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .section-chip {
+      font-size: 0.72rem;
+      color: var(--muted);
+      padding: 4px 8px;
+      background: var(--surface);
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      padding: 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      border-top: 1px solid var(--border);
+      width: 100%;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 600px) {
+      .quiz-card { flex-direction: column; gap: 16px; }
+      .card-arrow { align-self: flex-end; }
+      header h1 { font-size: 1.5rem; }
+      .sections-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⚡</div>
+  <h1>VelocityHire Quiz Hub</h1>
+  <p>Test your knowledge of the VelocityHire recruitment platform. Choose a quiz below to get started.</p>
+</header>
+
+<main>
+  <div class="hub-label">Select a quiz</div>
+
+  <!-- DOCS QUIZ CARD -->
+  <a href="/docs-quiz.html" class="quiz-card card-docs">
+    <div class="card-icon">📋</div>
+    <div class="card-body">
+      <div class="card-tag">Project Documentation</div>
+      <h2>Project Docs Quiz</h2>
+      <p>Test your mastery of the VelocityHire project documentation — from the core value proposition and scoring system through to the BRD, user stories, market research, and product roadmap.</p>
+      <div class="card-meta">
+        <span class="meta-chip">📋 40 Questions</span>
+        <span class="meta-chip">🗂 8 Sections</span>
+        <span class="meta-chip">⏱ Self-paced</span>
+        <span class="meta-chip">🎯 Instant feedback</span>
+      </div>
+      <div class="sections-grid" style="margin-top:14px;">
+        <span class="section-chip">S1 · Core Value Proposition</span>
+        <span class="section-chip">S2 · Adaptability Scoring</span>
+        <span class="section-chip">S3 · Agent Architecture</span>
+        <span class="section-chip">S4 · Demo Simulations</span>
+        <span class="section-chip">S5 · Business Requirements</span>
+        <span class="section-chip">S6 · User Stories &amp; Personas</span>
+        <span class="section-chip">S7 · Market Research</span>
+        <span class="section-chip">S8 · Roadmap &amp; Hackathon</span>
+      </div>
+    </div>
+    <div class="card-arrow">→</div>
+  </a>
+
+  <!-- ARCH QUIZ CARD -->
+  <a href="/arch-quiz.html" class="quiz-card card-arch">
+    <div class="card-icon">🏗</div>
+    <div class="card-body">
+      <div class="card-tag">Architecture &amp; Full-Stack</div>
+      <h2>Architecture &amp; Full-Stack Quiz</h2>
+      <p>Test your understanding of the full VelocityHire system — from the LangGraph agent pipeline and FastAPI server to ATS integrations, the analytics bug fix, security hardening, and the production roadmap.</p>
+      <div class="card-meta">
+        <span class="meta-chip">📋 40 Questions</span>
+        <span class="meta-chip">🗂 8 Sections</span>
+        <span class="meta-chip">⏱ Self-paced</span>
+        <span class="meta-chip">🎯 Instant feedback</span>
+      </div>
+      <div class="sections-grid" style="margin-top:14px;">
+        <span class="section-chip">S1 · Architecture &amp; Core Concepts</span>
+        <span class="section-chip">S2 · The Three Agents</span>
+        <span class="section-chip">S3 · Demo Features &amp; UI</span>
+        <span class="section-chip">S4 · API Endpoints</span>
+        <span class="section-chip">S5 · ATS Integrations</span>
+        <span class="section-chip">S6 · Security Fixes</span>
+        <span class="section-chip">S7 · Database &amp; Analytics</span>
+        <span class="section-chip">S8 · Production Roadmap</span>
+      </div>
+    </div>
+    <div class="card-arrow">→</div>
+  </a>
+
+  <!-- DEMO QUIZ CARD -->
+  <a href="/demo-quiz.html" class="quiz-card card-demo">
+    <div class="card-icon">⚡</div>
+    <div class="card-body">
+      <div class="card-tag">Codebase Deep-Dive</div>
+      <h2>demo/app.py Quiz</h2>
+      <p>Deep-dive into the VelocityHire FastAPI application. Questions cover config constants, pipeline mechanics, API endpoints, scoring tiers, security implementation, ATS integrations, and the inline frontend.</p>
+      <div class="card-meta">
+        <span class="meta-chip">📋 40 Questions</span>
+        <span class="meta-chip">🗂 8 Sections</span>
+        <span class="meta-chip">⏱ Self-paced</span>
+        <span class="meta-chip">🎯 Instant feedback</span>
+      </div>
+      <div class="sections-grid" style="margin-top:14px;">
+        <span class="section-chip">S1 · Config &amp; Constants</span>
+        <span class="section-chip">S2 · Candidates &amp; Job Data</span>
+        <span class="section-chip">S3 · Pipeline Mechanics</span>
+        <span class="section-chip">S4 · API Endpoints</span>
+        <span class="section-chip">S5 · Scoring Logic &amp; Tiers</span>
+        <span class="section-chip">S6 · Security Implementation</span>
+        <span class="section-chip">S7 · ATS Integration</span>
+        <span class="section-chip">S8 · Frontend &amp; Analytics</span>
+      </div>
+    </div>
+    <div class="card-arrow">→</div>
+  </a>
+</main>
+
+<footer>
+  VelocityHire Quiz Hub &nbsp;·&nbsp; 120 questions across 3 quizzes
+</footer>
+
+</body>
+</html>

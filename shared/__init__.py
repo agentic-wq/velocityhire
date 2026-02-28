@@ -1,0 +1,1 @@
+# VelocityHire shared package

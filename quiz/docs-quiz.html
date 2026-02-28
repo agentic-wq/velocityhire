@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VelocityHire — Project Documentation Quiz</title>
+  <style>
+    :root {
+      --bg: #0d0f1a;
+      --surface: #161928;
+      --card: #1e2235;
+      --border: #2a2f4a;
+      --accent: #00d4aa;
+      --accent2: #6c63ff;
+      --accent3: #ff6b6b;
+      --accent4: #ffd166;
+      --text: #e8eaf6;
+      --muted: #8892b0;
+      --correct: #00d4aa;
+      --wrong: #ff6b6b;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── HEADER ── */
+    header {
+      width: 100%;
+      background: linear-gradient(135deg, #1a1d2e 0%, #0f1120 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+      text-align: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+
+    /* ── PROGRESS BAR ── */
+    .progress-wrap {
+      width: 100%;
+      max-width: 820px;
+      padding: 16px 24px 0;
+    }
+    .progress-info {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 99px;
+      transition: width 0.4s ease;
+    }
+
+    /* ── SECTION TABS ── */
+    .section-tabs {
+      width: 100%;
+      max-width: 820px;
+      padding: 16px 24px 0;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .tab {
+      padding: 5px 12px;
+      border-radius: 99px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .tab.active { background: var(--accent); border-color: var(--accent); color: #000; }
+    .tab.done { border-color: var(--accent2); color: var(--accent2); }
+
+    /* ── MAIN ── */
+    main {
+      width: 100%;
+      max-width: 820px;
+      padding: 24px;
+      flex: 1;
+    }
+
+    /* ── QUIZ SCREEN ── */
+    #quiz-screen {}
+
+    .section-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    .question-num {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .question-text {
+      font-size: 1.2rem;
+      font-weight: 600;
+      line-height: 1.5;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+
+    .choices { display: flex; flex-direction: column; gap: 12px; }
+    .choice {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s;
+      user-select: none;
+    }
+    .choice:hover:not(.locked) {
+      border-color: var(--accent);
+      background: #0d2b25;
+    }
+    .choice.selected {
+      border-color: var(--accent);
+      background: #0d2b25;
+    }
+    .choice.correct {
+      border-color: var(--correct);
+      background: #0d2b25;
+    }
+    .choice.wrong {
+      border-color: var(--wrong);
+      background: #2b1515;
+    }
+    .choice-letter {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .choice.selected .choice-letter { background: var(--accent); color: #000; }
+    .choice.correct .choice-letter { background: var(--correct); color: #000; }
+    .choice.wrong .choice-letter { background: var(--wrong); color: #fff; }
+    .choice-text { font-size: 0.95rem; line-height: 1.4; }
+
+    /* ── FEEDBACK ── */
+    .feedback {
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      display: none;
+    }
+    .feedback.show { display: block; }
+    .feedback.correct-fb {
+      background: #0d2b25;
+      border: 1px solid var(--correct);
+      color: var(--correct);
+    }
+    .feedback.wrong-fb {
+      background: #2b1515;
+      border: 1px solid var(--wrong);
+      color: #ff9999;
+    }
+
+    /* ── NAV BUTTONS ── */
+    .nav-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 28px;
+      gap: 12px;
+    }
+    .btn {
+      padding: 11px 24px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), #009977);
+      color: #000;
+    }
+    .btn-primary:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-secondary {
+      background: transparent;
+      border: 1.5px solid var(--border);
+      color: var(--muted);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--text); }
+    .btn:disabled { opacity: 0.35; cursor: default; transform: none; }
+
+    /* ── QUESTION GRID NAV ── */
+    .q-grid-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .q-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 24px;
+    }
+    .q-dot {
+      width: 30px;
+      height: 30px;
+      border-radius: 7px;
+      background: var(--card);
+      border: 1.5px solid var(--border);
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .q-dot:hover { border-color: var(--accent); color: var(--text); }
+    .q-dot.current { border-color: var(--accent); background: var(--accent); color: #000; }
+    .q-dot.answered-correct { background: #0d2b25; border-color: var(--correct); color: var(--correct); }
+    .q-dot.answered-wrong { background: #2b1515; border-color: var(--wrong); color: var(--wrong); }
+    .q-dot.unanswered { background: var(--card); }
+
+    /* ── RESULTS SCREEN ── */
+    #results-screen { display: none; }
+    .results-hero {
+      text-align: center;
+      padding: 32px 0 24px;
+    }
+    .score-circle {
+      width: 140px;
+      height: 140px;
+      border-radius: 50%;
+      background: conic-gradient(var(--accent) 0%, var(--accent) var(--pct, 0%), var(--border) var(--pct, 0%) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+    .score-circle::before {
+      content: '';
+      position: absolute;
+      width: 108px;
+      height: 108px;
+      background: var(--bg);
+      border-radius: 50%;
+    }
+    .score-num {
+      position: relative;
+      z-index: 1;
+      font-size: 2.2rem;
+      font-weight: 800;
+      color: var(--text);
+    }
+    .score-denom { font-size: 1rem; color: var(--muted); }
+    .tier-badge {
+      display: inline-block;
+      padding: 8px 22px;
+      border-radius: 99px;
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .tier-expert { background: linear-gradient(135deg,#00d4aa,#6c63ff); color: #fff; }
+    .tier-proficient { background: linear-gradient(135deg,#ffd166,#ff6b6b); color: #111; }
+    .tier-familiar { background: linear-gradient(135deg,#4ecdc4,#2980b9); color: #fff; }
+    .tier-review { background: var(--border); color: var(--muted); }
+    .tier-msg { color: var(--muted); font-size: 0.9rem; margin-bottom: 28px; }
+
+    .results-breakdown {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      text-align: center;
+    }
+    .stat-val { font-size: 1.8rem; font-weight: 800; }
+    .stat-val.green { color: var(--correct); }
+    .stat-val.red { color: var(--wrong); }
+    .stat-val.yellow { color: var(--accent4); }
+    .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── REVIEW TABLE ── */
+    .review-toggle {
+      text-align: center;
+      margin-bottom: 16px;
+    }
+    #review-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    #review-table th {
+      background: var(--card);
+      padding: 10px 12px;
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+    }
+    #review-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    #review-table tr:hover td { background: var(--card); }
+    .r-correct { color: var(--correct); font-weight: 700; }
+    .r-wrong { color: var(--wrong); font-weight: 700; }
+    .r-answer { color: var(--muted); font-size: 0.8rem; }
+
+    .results-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 24px 0; }
+
+    /* ── SPLASH SCREEN ── */
+    #splash-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 40px 24px;
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    .splash-logo {
+      width: 80px;
+      height: 80px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      margin-bottom: 24px;
+    }
+    #splash-screen h2 { font-size: 2rem; margin-bottom: 12px; }
+    #splash-screen p { color: var(--muted); margin-bottom: 8px; line-height: 1.6; }
+    .meta-pills {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 20px 0 32px;
+    }
+    .pill {
+      padding: 6px 14px;
+      border-radius: 99px;
+      font-size: 0.82rem;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .pill span { color: var(--accent); font-weight: 700; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      header h1 { font-size: 1.3rem; }
+      .question-text { font-size: 1.05rem; }
+      main { padding: 16px; }
+      .nav-row { flex-wrap: wrap; }
+    }
+    @media (max-width: 480px) {
+      .results-breakdown { grid-template-columns: 1fr 1fr; }
+      .score-num { font-size: 1.8rem; }
+    }
+
+    /* ── TIMER ── */
+    .timer-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .timer-icon { font-size: 1rem; }
+    .timer-val { font-weight: 700; color: var(--accent4); font-variant-numeric: tabular-nums; }
+
+    /* ── CONFETTI ── */
+    #confetti-canvas {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="confetti-canvas"></canvas>
+
+<header>
+  <h1>📋 VelocityHire — Project Documentation Quiz</h1>
+  <p>40 questions covering value proposition, scoring system, architecture, BRD, user stories, market research &amp; roadmap</p>
+</header>
+
+<!-- SPLASH -->
+<div id="splash-screen">
+  <div class="splash-logo">📋</div>
+  <h2>Ready to be tested?</h2>
+  <p>40 questions across 8 sections drawn from the VelocityHire <strong>project documentation files</strong>.</p>
+  <div class="meta-pills">
+    <div class="pill">📋 <span>40</span> Questions</div>
+    <div class="pill">🗂 <span>8</span> Sections</div>
+    <div class="pill">⏱ Self-paced</div>
+    <div class="pill">🎯 Instant feedback</div>
+  </div>
+  <button class="btn btn-primary" style="font-size:1rem;padding:14px 40px;" onclick="startQuiz()">Start Quiz →</button>
+</div>
+
+<!-- PROGRESS -->
+<div class="progress-wrap" id="progress-wrap" style="display:none;">
+  <div class="progress-info">
+    <span id="progress-label">Question 1 of 40</span>
+    <div class="timer-wrap">
+      <span class="timer-icon">⏱</span>
+      <span class="timer-val" id="timer-display">00:00</span>
+    </div>
+  </div>
+  <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+</div>
+
+<!-- SECTION TABS -->
+<div class="section-tabs" id="section-tabs" style="display:none;">
+</div>
+
+<main>
+
+  <!-- QUIZ SCREEN -->
+  <div id="quiz-screen" style="display:none;">
+    <div class="section-label" id="section-label"></div>
+    <div class="question-num" id="question-num"></div>
+    <div class="question-text" id="question-text"></div>
+    <div class="choices" id="choices"></div>
+    <div class="feedback" id="feedback"></div>
+
+    <div style="margin-top:28px;">
+      <div class="q-grid-title">Jump to question</div>
+      <div class="q-grid" id="q-grid"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="btn btn-secondary" id="btn-prev" onclick="navigate(-1)">← Prev</button>
+      <button class="btn btn-primary" id="btn-next" onclick="navigate(1)">Next →</button>
+      <button class="btn btn-primary" id="btn-finish" onclick="showResults()" style="display:none;background:linear-gradient(135deg,var(--accent),#009977);color:#000;">🏁 Finish Quiz</button>
+    </div>
+  </div>
+
+  <!-- RESULTS SCREEN -->
+  <div id="results-screen">
+    <div class="results-hero">
+      <div class="score-circle" id="score-circle">
+        <div class="score-num" id="score-num">0</div>
+      </div>
+      <div class="tier-badge" id="tier-badge"></div>
+      <div class="tier-msg" id="tier-msg"></div>
+    </div>
+
+    <div class="results-breakdown">
+      <div class="stat-card">
+        <div class="stat-val green" id="r-correct">0</div>
+        <div class="stat-label">✅ Correct</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val red" id="r-wrong">0</div>
+        <div class="stat-label">❌ Wrong</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val yellow" id="r-skipped">0</div>
+        <div class="stat-label">⏭ Skipped</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-val" id="r-time" style="color:var(--accent);">0:00</div>
+        <div class="stat-label">⏱ Time Taken</div>
+      </div>
+    </div>
+
+    <div class="review-toggle">
+      <button class="btn btn-secondary" onclick="toggleReview()" id="review-btn">📋 Show Answer Review</button>
+    </div>
+
+    <div id="review-section" style="display:none;overflow-x:auto;margin-bottom:24px;">
+      <table id="review-table">
+        <thead>
+          <tr><th>#</th><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th></th></tr>
+        </thead>
+        <tbody id="review-body"></tbody>
+      </table>
+    </div>
+
+    <div class="results-actions">
+      <button class="btn btn-primary" onclick="restartQuiz()">🔄 Retake Quiz</button>
+      <button class="btn btn-secondary" onclick="reviewMissed()">📖 Review Missed Only</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── QUIZ DATA ──────────────────────────────────────────────────────────────
+const SECTIONS = [
+  "Core Value Proposition & Vision",
+  "Adaptability Scoring System",
+  "Agent Architecture & Data Flow",
+  "Demo Simulations & Candidates",
+  "Business Requirements & Pricing",
+  "User Stories & Personas",
+  "Market Research & Validation",
+  "Roadmap & Hackathon Requirements"
+];
+
+const QUESTIONS = [
+  // Section 1: Core Value Proposition & Vision (Q1–Q5)
+  {s:0, q:"What is VelocityHire's primary value proposition as stated in the Core Value Proposition document?", choices:["Credentials beat experience","Learning Velocity over Static Skills","Years of experience predict performance","AI replaces human recruiters"], a:1},
+  {s:0, q:"According to the Core Value Proposition document, what does VelocityHire prioritize candidates on?", choices:["Degree from prestigious universities","Years of experience in specific technologies","Demonstrated ability to continuously learn and adapt","Technical assessment test scores"], a:2},
+  {s:0, q:"What is VelocityHire's primary target problem according to the marketing value proposition document?", choices:["Companies can't find enough developers","Companies waste resources hiring developers with outdated skills who can't adapt, while missing hungry learners","Remote work increases hiring costs","AI is replacing software developers"], a:1},
+  {s:0, q:"According to the VelocityHire demo script, by what percentage do adaptable candidates outperform traditional hires in retention?", choices:["40%","60%","73%","80%"], a:0},
+  {s:0, q:"According to the demo script opening hook, what percentage of successful hires share adaptability as their defining trait?", choices:["57%","63%","73%","85%"], a:2},
+
+  // Section 2: Adaptability Scoring System (Q6–Q11)
+  {s:1, q:"What is the maximum total score in the Hackathon Enhanced Scoring rubric?", choices:["50 points","75 points","100 points","150 points"], a:2},
+  {s:1, q:"What is the total point allocation for 'Learning Velocity Priority' in the Hackathon Enhanced Scoring rubric?", choices:["25 points","35 points","45 points","60 points"], a:2},
+  {s:1, q:"How many points is 'Recent Skill Acquisition' worth within the Learning Velocity Priority category?", choices:["10 points","25 points","35 points","45 points"], a:1},
+  {s:1, q:"What recency multiplier is applied to hackathon participation within the last 3 months?", choices:["2x","3x","4x","5x"], a:2},
+  {s:1, q:"According to Agent 1's hackathon extraction logic, what is the total score a recent win (last 6 months) generates including the 4x recency multiplier?", choices:["6 points","12 points","24 points","40 points"], a:2},
+  {s:1, q:"What are the three main scoring categories in the Hackathon Enhanced Scoring rubric?", choices:["Skills, Experience, Education","Learning Velocity Priority, Technical Foundation, Startup Experience","Adaptability, Culture Fit, Role Requirements","Hackathons, Certifications, GitHub Activity"], a:1},
+
+  // Section 3: Agent Architecture & Data Flow (Q12–Q16)
+  {s:2, q:"What percentage weight does adaptability carry in Agent 2's job matching algorithm?", choices:["25%","40%","60%","75%"], a:2},
+  {s:2, q:"What are the correct weights in Agent 2's matching algorithm across all three dimensions?", choices:["Adaptability 50%, Role requirements 30%, Culture fit 20%","Adaptability 60%, Role requirements 25%, Culture fit 15%","Adaptability 70%, Role requirements 20%, Culture fit 10%","Adaptability 40%, Role requirements 40%, Culture fit 20%"], a:1},
+  {s:2, q:"What is Agent 1's primary input according to the system architecture overview?", choices:["Job descriptions from hiring managers","LinkedIn profile URLs","GitHub repository links","Candidate resumes in PDF format"], a:1},
+  {s:2, q:"What technologies does Agent 1 use for processing according to the system architecture?", choices:["Deep learning neural networks and transformers","Blockchain and distributed ledger","Web scraping, NLP processing, and pattern recognition","Computer vision and OCR"], a:2},
+  {s:2, q:"What success metrics does the system architecture document specify for measuring platform effectiveness?", choices:["Revenue per customer, churn rate, and LTV","Adaptability score accuracy vs. actual performance, response rates by score tier, hire success rate for 70+ scored candidates","Time to hire, cost per hire, number of applications","Server uptime, API response time, and error rate"], a:1},
+
+  // Section 4: Demo Simulations & Candidates (Q17–Q22)
+  {s:3, q:"In the three-agent demo simulation, what adaptability score does Candidate A (Sarah Chen, 8 years React) receive?", choices:["25/100","35/100","50/100","65/100"], a:1},
+  {s:3, q:"In the three-agent demo simulation, what adaptability score does Candidate B (Marcus Rodriguez) receive?", choices:["75/100","80/100","87/100","95/100"], a:2},
+  {s:3, q:"In the demo simulation, which hackathon did Marcus Rodriguez recently win?", choices:["TechCrunch Disrupt","AngelHack Global","React Summit Hackathon","GitHub Universe"], a:2},
+  {s:3, q:"What is Candidate A's total job match score in Agent 2 of the demo simulation?", choices:["35/100","42/100","54/100","68/100"], a:2},
+  {s:3, q:"In the three-agent simulation demo (Sarah Chen scenario), what is Sarah Chen's total match score from Agent 2?", choices:["75.2/100","80.5/100","85.7/100","92.3/100"], a:2},
+  {s:3, q:"What action does Agent 3 take for a candidate with a low adaptability score (below threshold) in the demo simulation?", choices:["Send a standard template outreach email","Schedule a technical screening call","Skip outreach and add to passive pipeline for future roles","Request updated portfolio materials"], a:2},
+
+  // Section 5: Business Requirements & Pricing (Q23–Q27)
+  {s:4, q:"What is the monthly price for the Starter subscription tier?", choices:["$99/month","$199/month","$299/month","$499/month"], a:2},
+  {s:4, q:"What is the monthly price for the Enterprise subscription tier?", choices:["$999/month","$1,499/month","$1,999/month","$2,999/month"], a:2},
+  {s:4, q:"What is VelocityHire's Year 2 ARR revenue target according to the Business Requirements Document?", choices:["$500K","$1M","$2M","$5M"], a:2},
+  {s:4, q:"According to the Business Requirements Document, what is the SAM (Serviceable Addressable Market) for the technical recruiting segment?", choices:["$150M","$1.5B","$3.2B","$15B"], a:2},
+  {s:4, q:"What are VelocityHire's three target market segments according to the BRD?", choices:["Startups, SMBs, and Enterprises","Mid-size tech companies (100–1000 employees), technical recruiting agencies, and enterprise companies (1000+ employees)","US companies, EU companies, and Asia-Pacific companies","Engineering, Product, and Marketing teams"], a:1},
+
+  // Section 6: User Stories & Personas (Q28–Q32)
+  {s:5, q:"What is the name and title of the Hiring Manager persona defined in the user stories?", choices:["Jennifer Park — VP People Operations","Mike Rodriguez — Senior Recruiter","Sarah Chen — Engineering Manager","Marcus Rodriguez — Team Lead"], a:2},
+  {s:5, q:"What is the name and title of the HR Director persona in the user stories?", choices:["Sarah Chen — Engineering Manager","Mike Rodriguez — Senior Recruiter","Jennifer Park — VP People Operations","Alex Thompson — Senior Technical Recruiter"], a:2},
+  {s:5, q:"According to User Story 5 (Outreach Prioritization), what are the three outreach tiers and their score thresholds?", choices:["Tier 1: 90+, Tier 2: 80–89, Tier 3: 70–79","Tier 1: 80+, Tier 2: 70–79, Tier 3: 60–69","Tier 1: 75+, Tier 2: 65–74, Tier 3: 55–64","Tier 1: 85+, Tier 2: 75–84, Tier 3: 65–74"], a:1},
+  {s:5, q:"According to the user stories success metrics, what screening time reduction is targeted for Stories 4–6 (Recruiter Workflow)?", choices:["30% reduction","45% reduction","60% reduction","75% reduction"], a:2},
+  {s:5, q:"According to the user stories success metrics, what improvement in hire success rate is expected for Stories 1–3 (Hiring Manager)?", choices:["20% improvement","30% improvement","40% improvement","50% improvement"], a:2},
+
+  // Section 7: Market Research & Validation (Q33–Q37)
+  {s:6, q:"What is the validated cost of a senior developer mis-hire targeted in the market research framework?", choices:["$100K+","$150K+","$200K+","$240K+"], a:3},
+  {s:6, q:"According to the market research framework, what percentage of 'required skills' in job posts become outdated within 18 months?", choices:["20%+","30%+","40%+","50%+"], a:2},
+  {s:6, q:"What retention advantage do adaptable learners have according to the market research framework's target metrics?", choices:["15%+ higher retention","25%+ higher retention","35%+ higher retention","45%+ higher retention"], a:1},
+  {s:6, q:"How many tech hiring managers should be interviewed in Phase 2 (Primary Research) of the market research plan?", choices:["10","20","50","100"], a:1},
+  {s:6, q:"What statistical confidence level is required for the market research success criteria?", choices:["80%","90%","95%","99%"], a:2},
+
+  // Section 8: Roadmap & Hackathon Requirements (Q38–Q40)
+  {s:7, q:"What is the hackathon submission deadline according to the AI Recruitment Platform Master Roadmap?", choices:["Monday, February 24th","Wednesday, February 26th, 6:00 PM","Friday, February 27th, 6:00 PM","Sunday, March 1st"], a:2},
+  {s:7, q:"What was the overall project completion percentage at the time the master roadmap was written?", choices:["20%","35%","50%","65%"], a:1},
+  {s:7, q:"According to the hackathon requirements analysis, what is the minimum number of AI agents required by the Complete.dev challenge?", choices:["1","2","3","5"], a:1},
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let current = 0;
+let userAnswers = new Array(QUESTIONS.length).fill(-1);
+let answered = new Array(QUESTIONS.length).fill(false);
+let startTime = null;
+let timerInterval = null;
+let totalSeconds = 0;
+let reviewMode = false;
+let missedOnly = false;
+let missedIndices = [];
+
+// ── TIMER ──────────────────────────────────────────────────────────────────
+function startTimer() {
+  startTime = Date.now();
+  timerInterval = setInterval(() => {
+    totalSeconds = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('timer-display').textContent = formatTime(totalSeconds);
+  }, 1000);
+}
+function stopTimer() { clearInterval(timerInterval); }
+function formatTime(s) {
+  const m = Math.floor(s / 60).toString().padStart(2,'0');
+  const ss = (s % 60).toString().padStart(2,'0');
+  return `${m}:${ss}`;
+}
+
+// ── INIT ───────────────────────────────────────────────────────────────────
+function startQuiz() {
+  document.getElementById('splash-screen').style.display = 'none';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('section-tabs').style.display = 'flex';
+  document.getElementById('quiz-screen').style.display = 'block';
+  buildSectionTabs();
+  renderQuestion();
+  startTimer();
+}
+
+function buildSectionTabs() {
+  const wrap = document.getElementById('section-tabs');
+  wrap.innerHTML = '';
+  SECTIONS.forEach((s, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab';
+    btn.textContent = `S${i+1}`;
+    btn.title = s;
+    btn.onclick = () => jumpToSection(i);
+    btn.id = `tab-${i}`;
+    wrap.appendChild(btn);
+  });
+}
+
+function jumpToSection(si) {
+  const idx = QUESTIONS.findIndex(q => q.s === si);
+  if (idx !== -1) { current = idx; renderQuestion(); }
+}
+
+function updateSectionTabs() {
+  SECTIONS.forEach((_, i) => {
+    const tab = document.getElementById(`tab-${i}`);
+    if (!tab) return;
+    tab.className = 'tab';
+    const qs = QUESTIONS.filter(q => q.s === i);
+    const done = qs.every((_, qi) => answered[QUESTIONS.findIndex(q => q === qs[qi])]);
+    if (done) tab.classList.add('done');
+    if (QUESTIONS[current].s === i) tab.classList.add('active');
+  });
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────────────
+function renderQuestion() {
+  const Q = QUESTIONS[current];
+  const letters = ['A','B','C','D'];
+
+  document.getElementById('section-label').textContent = `Section ${Q.s+1}: ${SECTIONS[Q.s]}`;
+  document.getElementById('question-num').textContent = `Question ${current+1} of ${QUESTIONS.length}`;
+  document.getElementById('question-text').textContent = Q.q;
+
+  // Progress
+  const pct = ((current) / QUESTIONS.length) * 100;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `Question ${current+1} of ${QUESTIONS.length}`;
+
+  // Choices
+  const choicesEl = document.getElementById('choices');
+  choicesEl.innerHTML = '';
+  Q.choices.forEach((c, i) => {
+    const div = document.createElement('div');
+    div.className = 'choice';
+    div.innerHTML = `<div class="choice-letter">${letters[i]}</div><div class="choice-text">${c}</div>`;
+    div.onclick = () => selectAnswer(i);
+
+    if (answered[current]) {
+      div.classList.add('locked');
+      if (i === Q.a) div.classList.add('correct');
+      else if (i === userAnswers[current] && userAnswers[current] !== Q.a) div.classList.add('wrong');
+    } else if (userAnswers[current] === i) {
+      div.classList.add('selected');
+    }
+    choicesEl.appendChild(div);
+  });
+
+  // Feedback
+  const fb = document.getElementById('feedback');
+  fb.className = 'feedback';
+  if (answered[current]) {
+    if (userAnswers[current] === Q.a) {
+      fb.className = 'feedback show correct-fb';
+      fb.textContent = '✅ Correct!';
+    } else if (userAnswers[current] === -1) {
+      fb.className = 'feedback show wrong-fb';
+      fb.textContent = `⏭ Skipped — Correct answer: ${letters[Q.a]}) ${Q.choices[Q.a]}`;
+    } else {
+      fb.className = 'feedback show wrong-fb';
+      fb.textContent = `❌ Incorrect — Correct answer: ${letters[Q.a]}) ${Q.choices[Q.a]}`;
+    }
+  }
+
+  // Nav buttons
+  document.getElementById('btn-prev').disabled = current === 0;
+  if (current === QUESTIONS.length - 1) {
+    document.getElementById('btn-next').style.display = 'none';
+    document.getElementById('btn-finish').style.display = 'inline-block';
+  } else {
+    document.getElementById('btn-next').style.display = 'inline-block';
+    document.getElementById('btn-finish').style.display = 'none';
+  }
+
+  // Q grid
+  buildQGrid();
+  updateSectionTabs();
+}
+
+function buildQGrid() {
+  const grid = document.getElementById('q-grid');
+  grid.innerHTML = '';
+  QUESTIONS.forEach((q, i) => {
+    const d = document.createElement('div');
+    d.className = 'q-dot';
+    d.textContent = i + 1;
+    d.title = `Q${i+1}`;
+    if (i === current) d.classList.add('current');
+    else if (answered[i]) {
+      if (userAnswers[i] === q.a) d.classList.add('answered-correct');
+      else d.classList.add('answered-wrong');
+    } else d.classList.add('unanswered');
+    d.onclick = () => { current = i; renderQuestion(); };
+    grid.appendChild(d);
+  });
+}
+
+// ── INTERACTION ────────────────────────────────────────────────────────────
+function selectAnswer(idx) {
+  if (answered[current]) return;
+  userAnswers[current] = idx;
+  answered[current] = true;
+  renderQuestion();
+}
+
+function navigate(dir) {
+  if (!answered[current]) {
+    answered[current] = true;
+  }
+  current = Math.max(0, Math.min(QUESTIONS.length - 1, current + dir));
+  renderQuestion();
+}
+
+// ── RESULTS ────────────────────────────────────────────────────────────────
+function showResults() {
+  for (let i = 0; i < QUESTIONS.length; i++) {
+    if (!answered[i]) answered[i] = true;
+  }
+  stopTimer();
+
+  const correct = QUESTIONS.filter((q,i) => userAnswers[i] === q.a).length;
+  const skipped = QUESTIONS.filter((q,i) => userAnswers[i] === -1).length;
+  const wrong = QUESTIONS.length - correct - skipped;
+
+  document.getElementById('quiz-screen').style.display = 'none';
+  document.getElementById('results-screen').style.display = 'block';
+  document.getElementById('progress-wrap').style.display = 'none';
+  document.getElementById('section-tabs').style.display = 'none';
+
+  const pct = (correct / QUESTIONS.length) * 100;
+  document.getElementById('score-circle').style.setProperty('--pct', pct.toFixed(1) + '%');
+  document.getElementById('score-num').innerHTML = `${correct}<span class="score-denom">/${QUESTIONS.length}</span>`;
+
+  let tier, msg, cls;
+  if (correct >= 38) { tier = "Expert"; msg = "Outstanding! You have mastery-level knowledge of VelocityHire's documentation."; cls = "tier-expert"; }
+  else if (correct >= 30) { tier = "Proficient"; msg = "Great work! You have strong working knowledge of the platform."; cls = "tier-proficient"; }
+  else if (correct >= 20) { tier = "Familiar"; msg = "Good foundation. Review the sections where you missed questions."; cls = "tier-familiar"; }
+  else { tier = "Review Needed"; msg = "Spend more time reviewing the project documentation to deepen your understanding."; cls = "tier-review"; }
+
+  const badge = document.getElementById('tier-badge');
+  badge.textContent = tier;
+  badge.className = 'tier-badge ' + cls;
+  document.getElementById('tier-msg').textContent = msg;
+
+  document.getElementById('r-correct').textContent = correct;
+  document.getElementById('r-wrong').textContent = wrong;
+  document.getElementById('r-skipped').textContent = skipped;
+  document.getElementById('r-time').textContent = formatTime(totalSeconds);
+
+  const tbody = document.getElementById('review-body');
+  tbody.innerHTML = '';
+  const letters = ['A','B','C','D'];
+  QUESTIONS.forEach((q, i) => {
+    const isCorrect = userAnswers[i] === q.a;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${i+1}</td>
+      <td>${q.q}</td>
+      <td class="${isCorrect ? 'r-correct' : 'r-wrong'}">${userAnswers[i] === -1 ? 'Skipped' : letters[userAnswers[i]] + ') ' + q.choices[userAnswers[i]]}</td>
+      <td class="r-answer">${letters[q.a]}) ${q.choices[q.a]}</td>
+      <td>${isCorrect ? '✅' : (userAnswers[i]===-1?'⏭':'❌')}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  if (correct >= 38) launchConfetti();
+}
+
+function toggleReview() {
+  const sec = document.getElementById('review-section');
+  const btn = document.getElementById('review-btn');
+  if (sec.style.display === 'none') { sec.style.display = 'block'; btn.textContent = '🔼 Hide Answer Review'; }
+  else { sec.style.display = 'none'; btn.textContent = '📋 Show Answer Review'; }
+}
+
+function restartQuiz() {
+  current = 0;
+  userAnswers = new Array(QUESTIONS.length).fill(-1);
+  answered = new Array(QUESTIONS.length).fill(false);
+  totalSeconds = 0;
+  document.getElementById('results-screen').style.display = 'none';
+  document.getElementById('quiz-screen').style.display = 'block';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('section-tabs').style.display = 'flex';
+  document.getElementById('review-section').style.display = 'none';
+  document.getElementById('review-btn').textContent = '📋 Show Answer Review';
+  renderQuestion();
+  startTimer();
+}
+
+function reviewMissed() {
+  missedIndices = QUESTIONS.map((q,i) => userAnswers[i] !== q.a ? i : -1).filter(i => i !== -1);
+  if (!missedIndices.length) { alert('You got all questions right! 🎉'); return; }
+  restartQuiz();
+}
+
+// ── CONFETTI ───────────────────────────────────────────────────────────────
+function launchConfetti() {
+  const canvas = document.getElementById('confetti-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const pieces = Array.from({length: 120}, () => ({
+    x: Math.random() * canvas.width,
+    y: Math.random() * -canvas.height,
+    r: Math.random() * 8 + 4,
+    d: Math.random() * 120 + 80,
+    color: ['#00d4aa','#6c63ff','#ffd166','#ff6b6b','#fff'][Math.floor(Math.random()*5)],
+    tilt: Math.random() * 10 - 10,
+    tv: Math.random() * 0.1 + 0.05,
+    vy: Math.random() * 3 + 2,
+    vx: Math.random() * 2 - 1,
+  }));
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    pieces.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = p.color;
+      ctx.fill();
+      p.y += p.vy;
+      p.x += p.vx + Math.sin(frame * p.tv) * 1.5;
+      p.tilt += 0.1;
+    });
+    frame++;
+    if (frame < 200) requestAnimationFrame(draw);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  draw();
+}
+</script>
+</body>
+</html>
