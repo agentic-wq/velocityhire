@@ -164,6 +164,7 @@ section[data-testid="stMain"] > div:first-child {padding-top: 0 !important;}
   background: var(--surface); border: 1px solid var(--border);
   border-radius: 14px; padding: 20px;
   font-family: 'Inter', -apple-system, sans-serif;
+  text-align: center;
 }
 .vh-inno-title {font-weight: 700; font-size: .92rem; margin-bottom: 6px; color: var(--text);}
 .vh-inno-desc {font-size: .78rem; color: var(--muted); line-height: 1.6;}
