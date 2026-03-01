@@ -1167,6 +1167,32 @@ footer { visibility: hidden; }
     font-weight: 700;
     margin: 12px 0;
 }
+
+/* Streamlit native widget overrides for dark theme */
+[data-testid="stMainBlockContainer"] {
+    background-color: #0d0f1a;
+    color: #e8eaf6;
+}
+
+/* Answer choice buttons */
+[data-testid="stBaseButton-secondary"] {
+    background-color: #1e2235;
+    color: #e8eaf6;
+    border: 1px solid #2a2f4a;
+}
+[data-testid="stBaseButton-secondary"]:hover {
+    background-color: #252840;
+    border-color: #5a6290;
+    color: #e8eaf6;
+}
+
+/* Markdown text */
+[data-testid="stMarkdown"] p,
+[data-testid="stMarkdown"] h1,
+[data-testid="stMarkdown"] h2,
+[data-testid="stMarkdown"] h3 {
+    color: #e8eaf6;
+}
 </style>
 """,
     unsafe_allow_html=True,
