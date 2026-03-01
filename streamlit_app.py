@@ -181,24 +181,28 @@ _AGENT_TIMEOUT_SECS = 30
 
 # ── Tier colour helpers ───────────────────────────────────────────────────────
 _TIER_COLOURS = {
-    "PRIORITY": "#00d4aa",
-    "STANDARD": "#3b82f6",
+    "PRIORITY": "#22c55e",
+    "STANDARD": "#6c63ff",
     "NURTURE": "#f59e0b",
-    "ARCHIVE": "#6b7280",
+    "ARCHIVE": "#94a3b8",
 }
 _ADAPT_COLOURS = {
-    "Elite": "#00d4aa",
-    "High": "#3b82f6",
+    "Elite": "#22c55e",
+    "High": "#6c63ff",
     "Standard": "#f59e0b",
-    "Low": "#6b7280",
+    "Low": "#94a3b8",
 }
 
 
 def _tier_badge(tier: str, colours: dict) -> str:
-    colour = colours.get(tier, "#6b7280")
+    colour = colours.get(tier, "#94a3b8")
+    h = colour.lstrip("#")
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
     return (
-        f'<span style="background:{colour};color:#000;padding:2px 10px;'
-        f'border-radius:12px;font-size:0.78rem;font-weight:700;">{tier}</span>'
+        f'<span style="background:rgba({r},{g},{b},.14);color:{colour};'
+        f'border:1px solid rgba({r},{g},{b},.3);'
+        f'padding:3px 10px;border-radius:8px;font-size:0.72rem;font-weight:700;'
+        f'text-transform:uppercase;">{tier}</span>'
     )
 
 
@@ -206,7 +210,7 @@ def _score_bar(score: int, colour: str) -> str:
     """Return an HTML progress bar for a 0-100 score."""
     pct = max(0, min(100, score))
     return (
-        f'<div style="background:#374151;border-radius:4px;height:8px;margin-top:4px;">'
+        f'<div style="background:#2a2a4a;border-radius:4px;height:8px;margin-top:4px;">'
         f'<div style="background:{colour};width:{pct}%;height:8px;border-radius:4px;"></div>'
         f"</div>"
     )
@@ -333,10 +337,12 @@ def run_pipeline(progress_bar, status_text) -> List[Dict[str, Any]]:
 st.markdown(
     """
     <div style="text-align:center;padding:2rem 0 1rem;">
-      <h1 style="font-size:2.8rem;font-weight:900;margin:0;">
+      <h1 style="font-size:2.8rem;font-weight:900;margin:0;
+                 background:linear-gradient(135deg,#6c63ff,#a78bfa 45%,#22c55e);
+                 -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
         ⚡ VelocityHire
       </h1>
-      <p style="font-size:1.15rem;color:#9ca3af;margin-top:0.4rem;">
+      <p style="font-size:1.05rem;color:#94a3b8;margin-top:0.4rem;">
         AI-Powered Recruitment Intelligence &nbsp;·&nbsp; 3 LangGraph Agents
       </p>
     </div>
@@ -361,7 +367,7 @@ with col_btn:
     run_clicked = st.button("🚀 Run Demo Pipeline", type="primary", use_container_width=True)
 with col_info:
     st.markdown(
-        "<small style='color:#9ca3af;'>Runs 3 LangGraph agents on 5 demo candidates "
+        "<small style='color:#94a3b8;'>Runs 3 LangGraph agents on 5 demo candidates "
         "in mock mode — no API key required.</small>",
         unsafe_allow_html=True,
     )
@@ -410,22 +416,24 @@ if "results" in st.session_state:
 
     # Per-candidate cards
     for r in results:
-        adapt_colour = _ADAPT_COLOURS.get(r.get("adaptability_tier", ""), "#6b7280")
-        tier_colour = _TIER_COLOURS.get(r.get("outreach_tier", "ARCHIVE"), "#6b7280")
+        adapt_colour = _ADAPT_COLOURS.get(r.get("adaptability_tier", ""), "#94a3b8")
+        tier_colour = _TIER_COLOURS.get(r.get("outreach_tier", "ARCHIVE"), "#94a3b8")
         recommend_badge = (
-            '<span style="background:#00d4aa;color:#000;padding:2px 8px;'
-            'border-radius:10px;font-size:0.75rem;font-weight:700;">✓ Interview</span>'
+            '<span style="background:rgba(34,197,94,.14);color:#22c55e;'
+            'border:1px solid rgba(34,197,94,.3);padding:2px 8px;'
+            'border-radius:8px;font-size:0.72rem;font-weight:700;">✓ Interview</span>'
             if r.get("recommend") else
-            '<span style="background:#374151;color:#9ca3af;padding:2px 8px;'
-            'border-radius:10px;font-size:0.75rem;">✗ Skip</span>'
+            '<span style="background:rgba(148,163,184,.1);color:#94a3b8;'
+            'border:1px solid rgba(148,163,184,.2);padding:2px 8px;'
+            'border-radius:8px;font-size:0.72rem;">✗ Skip</span>'
         )
 
         with st.container():
             st.markdown(
                 f"""
-                <div style="border:1px solid #374151;border-radius:12px;
+                <div style="border:1px solid #2a2a4a;border-radius:12px;
                             padding:1.2rem 1.4rem;margin-bottom:1rem;
-                            background:#161b22;">
+                            background:#10101e;">
                   <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.8rem;">
                     <span style="font-size:1.6rem;">{r['emoji']}</span>
                     <span style="font-size:1.2rem;font-weight:700;">{r['name']}</span>
@@ -435,30 +443,30 @@ if "results" in st.session_state:
                   </div>
                   <div style="display:flex;gap:2.5rem;">
                     <div style="min-width:160px;">
-                      <div style="font-size:0.78rem;color:#9ca3af;">Adaptability Score</div>
+                      <div style="font-size:0.78rem;color:#94a3b8;">Adaptability Score</div>
                       <div style="font-size:1.5rem;font-weight:800;color:{adapt_colour};">
-                        {r.get('adaptability_score', 0)}<span style="font-size:0.85rem;color:#9ca3af;">/100</span>
+                        {r.get('adaptability_score', 0)}<span style="font-size:0.85rem;color:#94a3b8;">/100</span>
                       </div>
                       {_score_bar(r.get('adaptability_score', 0), adapt_colour)}
-                      <div style="font-size:0.72rem;color:#9ca3af;margin-top:2px;">
+                      <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">
                         {r.get('adaptability_tier', '')}
                       </div>
                     </div>
                     <div style="min-width:160px;">
-                      <div style="font-size:0.78rem;color:#9ca3af;">Job Match Score</div>
+                      <div style="font-size:0.78rem;color:#94a3b8;">Job Match Score</div>
                       <div style="font-size:1.5rem;font-weight:800;color:{tier_colour};">
-                        {r.get('match_score', 0)}<span style="font-size:0.85rem;color:#9ca3af;">/100</span>
+                        {r.get('match_score', 0)}<span style="font-size:0.85rem;color:#94a3b8;">/100</span>
                       </div>
                       {_score_bar(r.get('match_score', 0), tier_colour)}
-                      <div style="font-size:0.72rem;color:#9ca3af;margin-top:2px;">
+                      <div style="font-size:0.72rem;color:#94a3b8;margin-top:2px;">
                         {r.get('match_tier', '')}
                       </div>
                     </div>
                     <div>
-                      <div style="font-size:0.78rem;color:#9ca3af;">Key Highlights</div>
+                      <div style="font-size:0.78rem;color:#94a3b8;">Key Highlights</div>
                       <div style="font-size:0.82rem;margin-top:4px;">
                         {"<br>".join(f"• {h}" for h in (r.get('key_highlights') or [])[:3])
-                         or "<em style='color:#6b7280;'>—</em>"}
+                         or "<em style='color:#64748b;'>—</em>"}
                       </div>
                     </div>
                   </div>
@@ -520,11 +528,11 @@ if "results" in st.session_state:
 # ── Footer ────────────────────────────────────────────────────────────────────
 st.markdown("---")
 st.markdown(
-    "<p style='text-align:center;color:#6b7280;font-size:0.8rem;'>"
+    "<p style='text-align:center;color:#64748b;font-size:0.8rem;'>"
     "⚡ VelocityHire · Complete.dev Hackathon 2026 · "
     "Built with LangGraph · "
     "<a href='https://q1inyxqs.run.complete.dev' target='_blank' "
-    "style='color:#00d4aa;'>Primary Demo (Cloud Run)</a>"
+    "style='color:#a78bfa;'>Primary Demo (Cloud Run)</a>"
     "</p>",
     unsafe_allow_html=True,
 )
