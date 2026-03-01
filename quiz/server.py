@@ -2,7 +2,7 @@ import http.server
 import socketserver
 import os
 
-PORT = 3004
+PORT = int(os.environ.get("PORT", 3004))
 DIRECTORY = os.path.dirname(os.path.abspath(__file__))
 
 
