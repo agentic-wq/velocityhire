@@ -356,7 +356,11 @@ section[data-testid="stMain"] > div:first-child {padding-top: 0 !important;}
 }
 
 /* Scorer */
-.vh-scorer-wrap {
+/* The vh-scorer-wrap div is a marker only — it cannot wrap Streamlit columns
+   because st.markdown() calls are isolated. Card styling is applied instead
+   to the stLayoutWrapper that immediately follows the marker element. */
+.vh-scorer-wrap { display: none; }
+[data-testid="stElementContainer"]:has(.vh-scorer-wrap) + [data-testid="stLayoutWrapper"] {
   background: var(--surface); border-radius: 16px;
   border: 1px solid var(--border); padding: 28px; margin-bottom: 36px;
   font-family: 'Inter', -apple-system, sans-serif;
