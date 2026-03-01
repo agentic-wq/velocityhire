@@ -436,8 +436,8 @@ section[data-testid="stMain"] > div:first-child {padding-top: 0 !important;}
 ::-webkit-scrollbar-track {background: var(--bg);}
 ::-webkit-scrollbar-thumb {background: var(--border); border-radius: 3px;}
 
-/* Streamlit button overrides */
-.stButton > button {
+/* Streamlit button overrides — primary (action) buttons */
+.stButton > button[data-testid="baseButton-primary"] {
   background: linear-gradient(135deg, #6c63ff, #a78bfa) !important;
   color: #fff !important;
   border: none !important;
@@ -449,14 +449,31 @@ section[data-testid="stMain"] > div:first-child {padding-top: 0 !important;}
   transition: all .2s !important;
   font-family: 'Inter', -apple-system, sans-serif !important;
 }
-.stButton > button:hover {
+.stButton > button[data-testid="baseButton-primary"]:hover {
   transform: translateY(-2px) !important;
   box-shadow: 0 0 55px rgba(108,99,255,.65) !important;
   background: linear-gradient(135deg, #6c63ff, #a78bfa) !important;
   color: #fff !important;
 }
-.stButton > button:disabled {
+.stButton > button[data-testid="baseButton-primary"]:disabled {
   opacity: .55 !important; cursor: not-allowed !important; transform: none !important;
+}
+/* Streamlit button overrides — secondary (sample/utility) buttons */
+.stButton > button[data-testid="baseButton-secondary"] {
+  background: var(--surface2) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--muted) !important;
+  font-size: .78rem !important;
+  font-weight: 600 !important;
+  padding: 7px 14px !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+  transition: border-color .2s, color .2s !important;
+  font-family: 'Inter', -apple-system, sans-serif !important;
+}
+.stButton > button[data-testid="baseButton-secondary"]:hover {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
 }
 
 /* Streamlit expander override */
@@ -501,7 +518,7 @@ section[data-testid="stMain"] > div:first-child {padding-top: 0 !important;}
   background: transparent !important;
 }
 /* Single-line button text */
-.vh-btn-wrap .stButton > button {
+.vh-btn-wrap .stButton > button[data-testid="baseButton-primary"] {
   white-space: nowrap !important;
   padding: 14px 36px !important;
 }
@@ -544,6 +561,16 @@ except Exception:
 
     def _get_mock_payload(*a, **kw):  # noqa: E302
         return {}
+
+# -- LinkedIn profile fetcher (optional) -------------------------------------
+try:
+    from profile_fetcher import fetch_linkedin_profile as _fetch_linkedin_profile
+    _PROFILE_FETCHER_ENABLED = True
+except Exception:
+    _PROFILE_FETCHER_ENABLED = False
+
+    def _fetch_linkedin_profile(url: str) -> dict:  # noqa: E302
+        return {"success": False, "profile_text": "", "error": "profile_fetcher not available"}
 
 # -- Demo data ----------------------------------------------------------------
 DEMO_JOB: Dict[str, Any] = {
@@ -1309,7 +1336,7 @@ st.markdown(_HERO_HTML, unsafe_allow_html=True)
 st.markdown('<div class="vh-btn-wrap">', unsafe_allow_html=True)
 _, btn_col, _ = st.columns([1, 2, 1])
 with btn_col:
-    run_clicked = st.button("▶  Run Full Pipeline Demo", use_container_width=True)
+    run_clicked = st.button("▶  Run Full Pipeline Demo", use_container_width=True, type="primary")
 st.markdown('</div>', unsafe_allow_html=True)
 
 # Main container
@@ -1533,35 +1560,69 @@ _SAMPLES = {
 
 with col_in:
     st.markdown('<div class="vh-scorer-label">Candidate Profile</div>', unsafe_allow_html=True)
-    s1, s2, s3 = st.columns(3)
     if "scorer_profile" not in st.session_state:
         st.session_state["scorer_profile"] = ""
-    with s1:
-        if st.button("\U0001f3c6 High", key="s_high", use_container_width=True):
-            st.session_state["scorer_profile"] = _SAMPLES["high"]
-    with s2:
-        if st.button("\u2705 Mid", key="s_mid", use_container_width=True):
-            st.session_state["scorer_profile"] = _SAMPLES["mid"]
-    with s3:
-        if st.button("\U0001f4cb Low", key="s_low", use_container_width=True):
-            st.session_state["scorer_profile"] = _SAMPLES["low"]
 
-    scorer_input = st.text_area(
-        "Profile",
-        value=st.session_state.get("scorer_profile", ""),
-        height=200,
-        placeholder=(
-            "Paste a LinkedIn-style profile here…\n\nExample:\n"
-            "Jane Smith — Senior ML Engineer\n"
-            "Skills: Python, LangChain, FastAPI, AWS\n"
-            "Hackathons: AI Builders (1 month ago) — WINNER\n"
-            "Certs: AWS ML Specialty (2 months ago)\n"
-            "GitHub: 55 commits last month"
-        ),
-        label_visibility="collapsed",
-        key="scorer_text",
-    )
-    score_btn = st.button("\u26a1 Score This Candidate (3 Agents)", use_container_width=True, key="score_btn")
+    scorer_tab_url, scorer_tab_paste = st.tabs(["🔗 LinkedIn URL", "📋 Paste Profile"])
+
+    with scorer_tab_url:
+        scorer_url = st.text_input(
+            "LinkedIn URL",
+            placeholder="https://www.linkedin.com/in/username/",
+            label_visibility="collapsed",
+            key="scorer_url",
+        )
+        fetch_col, _ = st.columns([1, 3])
+        with fetch_col:
+            fetch_btn = st.button("⬇ Fetch", key="scorer_fetch_btn", type="primary")
+        st.caption("ℹ️ Works on public profiles. Switch to Paste Profile if blocked.")
+        if fetch_btn:
+            if scorer_url:
+                with st.spinner("Fetching LinkedIn profile…"):
+                    _fetch_result = _fetch_linkedin_profile(scorer_url)
+                    if _fetch_result.get("success"):
+                        st.session_state["scorer_profile"] = _fetch_result["profile_text"]
+                        st.success("✅ Profile fetched! Click ⚡ Score below.")
+                    else:
+                        st.warning(
+                            f"⚠️ {_fetch_result.get('error', 'Could not fetch profile')}. "
+                            "Try the Paste Profile tab."
+                        )
+            else:
+                st.warning("Please enter a LinkedIn URL.")
+
+    with scorer_tab_paste:
+        st.text_area(
+            "Profile",
+            value=st.session_state.get("scorer_profile", ""),
+            height=200,
+            placeholder=(
+                "Paste a LinkedIn-style profile here…\n\nExample:\n"
+                "Jane Smith — Senior ML Engineer\n"
+                "Skills: Python, LangChain, FastAPI, AWS\n"
+                "Hackathons: AI Builders (1 month ago) — WINNER\n"
+                "Certs: AWS ML Specialty (2 months ago)\n"
+                "GitHub: 55 commits last month"
+            ),
+            label_visibility="collapsed",
+            key="scorer_text",
+        )
+        st.markdown(
+            '<span style="font-size:.72rem;color:var(--faint)">Load sample:</span>',
+            unsafe_allow_html=True,
+        )
+        s1, s2, s3 = st.columns(3)
+        with s1:
+            if st.button("\U0001f3c6 High velocity", key="s_high"):
+                st.session_state["scorer_profile"] = _SAMPLES["high"]
+        with s2:
+            if st.button("\u2705 Mid tier", key="s_mid"):
+                st.session_state["scorer_profile"] = _SAMPLES["mid"]
+        with s3:
+            if st.button("\U0001f4cb Low velocity", key="s_low"):
+                st.session_state["scorer_profile"] = _SAMPLES["low"]
+
+    score_btn = st.button("\u26a1 Score This Candidate (3 Agents)", use_container_width=True, key="score_btn", type="primary")
 
 with col_out:
     st.markdown('<div class="vh-scorer-label">Live Result</div>', unsafe_allow_html=True)
@@ -1575,9 +1636,12 @@ with col_out:
 st.markdown('</div>', unsafe_allow_html=True)
 
 if score_btn:
-    profile_text = st.session_state.get("scorer_text", "").strip()
+    profile_text = (
+        st.session_state.get("scorer_text", "").strip()
+        or st.session_state.get("scorer_profile", "").strip()
+    )
     if not profile_text:
-        st.warning("Please paste a candidate profile before scoring.")
+        st.warning("Please paste a candidate profile or fetch one via LinkedIn URL before scoring.")
     else:
         with st.spinner("\u26a1 Running 3 agents…"):
             try:
@@ -1761,31 +1825,35 @@ _ATS_PROVIDER_LABELS = {p["key"]: f'{p["logo"]} {p["name"]}' for p in _ATS_PROVI
 if "ats_log" not in st.session_state:
     st.session_state["ats_log"] = []
 
-# Render ATS cards in columns
+# Render ATS cards as a single HTML grid (compact layout matching Cloud Run)
+_ats_cards_html = '<div class="vh-ats-grid">'
+for _provider in _ATS_PROVIDERS:
+    _ats_cards_html += (
+        f'<div class="vh-ats-card">'
+        f'<div class="vh-ats-head">'
+        f'<div class="vh-ats-logo">{_provider["logo"]}</div>'
+        f'<div class="vh-ats-info">'
+        f'<div class="vh-ats-name">{_provider["name"]}</div>'
+        f'<div class="vh-ats-event">{_provider["event"]}</div>'
+        f'</div>'
+        f'<div class="vh-ats-status" title="Active"></div>'
+        f'</div>'
+        f'<div class="vh-ats-body">'
+        f'<div class="vh-ats-webhook">{_provider["webhook"]}</div>'
+        f'</div></div>'
+    )
+_ats_cards_html += '</div>'
+st.markdown(_ats_cards_html, unsafe_allow_html=True)
+
+# Render test buttons and results in columns below the grid
 ats_cols = st.columns(len(_ATS_PROVIDERS))
 for col, provider in zip(ats_cols, _ATS_PROVIDERS):
     with col:
-        # Card header
-        st.markdown(
-            f'<div class="vh-ats-card">'
-            f'<div class="vh-ats-head">'
-            f'<div class="vh-ats-logo">{provider["logo"]}</div>'
-            f'<div class="vh-ats-info">'
-            f'<div class="vh-ats-name">{provider["name"]}</div>'
-            f'<div class="vh-ats-event">{provider["event"]}</div>'
-            f'</div>'
-            f'<div class="vh-ats-status" title="Active"></div>'
-            f'</div>'
-            f'<div class="vh-ats-body">'
-            f'<div class="vh-ats-webhook">{provider["webhook"]}</div>'
-            f'</div></div>',
-            unsafe_allow_html=True,
-        )
         btn_key = f"ats_test_{provider['key']}"
         last_result_key = f"ats_result_{provider['key']}"
         last_result = st.session_state.get(last_result_key)
         btn_label = f"✅ {provider['name']} — run again" if last_result else f"{provider['logo']} Test {provider['name']} Webhook"
-        if st.button(btn_label, key=btn_key, use_container_width=True):
+        if st.button(btn_label, key=btn_key, use_container_width=True, type="primary"):
             with st.spinner(f"⏳ Running Agent 1 for {provider['name']}…"):
                 try:
                     mock = _get_mock_payload(provider["key"])
