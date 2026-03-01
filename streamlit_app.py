@@ -11,6 +11,7 @@ Run locally:
 import os
 import sys
 import time
+import html
 import concurrent.futures
 from pathlib import Path
 from typing import List, Dict, Any
@@ -403,6 +404,32 @@ section[data-testid="stMain"] > div:first-child {padding-top: 0 !important;}
   background: var(--surface2); padding: 6px 10px; border-radius: 6px;
   margin-bottom: 12px; word-break: break-all;
 }
+.vh-ats-result {
+  margin-top: 12px; padding: 10px; background: var(--surface2);
+  border-radius: 8px; font-size: .78rem;
+}
+.vh-ats-log-wrap {
+  background: var(--surface); border-radius: 16px; border: 1px solid var(--border);
+  margin-bottom: 36px; overflow: hidden; font-family: 'Inter', -apple-system, sans-serif;
+}
+.vh-ats-log-head {
+  padding: 14px 20px; background: var(--surface2); border-bottom: 1px solid var(--border);
+  font-size: .85rem; font-weight: 600;
+}
+.vh-ats-log-row {
+  display: grid; grid-template-columns: 1fr 1.2fr .8fr .8fr .8fr;
+  gap: 12px; padding: 12px 20px; border-bottom: 1px solid rgba(42,42,74,.4);
+  font-size: .8rem; align-items: center;
+}
+.vh-ats-log-header {
+  background: var(--surface2); font-weight: 600; font-size: .72rem;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .05em;
+}
+/* Score ring for scorer section */
+.vh-score-ring-wrap {display: flex; align-items: center; gap: 20px; margin-bottom: 16px;}
+.vh-score-ring-info .name {font-size: 1.05rem; font-weight: 700; margin-bottom: 4px;}
+.vh-score-ring-info .tier {font-size: .8rem; color: var(--muted);}
+.vh-score-ring-info .action {font-size: .82rem; margin-top: 6px; font-weight: 600;}
 
 /* Scrollbar */
 ::-webkit-scrollbar {width: 5px; height: 5px;}
@@ -504,6 +531,19 @@ def _load_agents():
 
 
 analyze_profile, match_candidate, generate_outreach = _load_agents()
+
+# -- ATS integration helpers (optional) --------------------------------------
+try:
+    from shared.ats_integrations import normalise as _ats_normalise, get_mock_payload as _get_mock_payload
+    _ATS_ENABLED = True
+except Exception:
+    _ATS_ENABLED = False
+
+    def _ats_normalise(*a, **kw):  # noqa: E302
+        return None
+
+    def _get_mock_payload(*a, **kw):  # noqa: E302
+        return {}
 
 # -- Demo data ----------------------------------------------------------------
 DEMO_JOB: Dict[str, Any] = {
@@ -1001,49 +1041,8 @@ _ATS_HTML = """
   <span class="vh-dot" style="background:#22c55e"></span>
   Enterprise ATS Integrations
   <span style="font-size:.78rem;color:var(--muted);font-weight:400">
-    — live webhook normalisation (Greenhouse · Lever · BambooHR)
+    — click Test to fire a live mock webhook
   </span>
-</div>
-<div class="vh-ats-grid">
-  <div class="vh-ats-card">
-    <div class="vh-ats-head">
-      <div class="vh-ats-logo">🌿</div>
-      <div class="vh-ats-info">
-        <div class="vh-ats-name">Greenhouse</div>
-        <div class="vh-ats-event">candidate.created webhook</div>
-      </div>
-      <div class="vh-ats-status" title="Active"></div>
-    </div>
-    <div class="vh-ats-body">
-      <div class="vh-ats-webhook">POST /ats/greenhouse/webhook</div>
-    </div>
-  </div>
-  <div class="vh-ats-card">
-    <div class="vh-ats-head">
-      <div class="vh-ats-logo">⚙️</div>
-      <div class="vh-ats-info">
-        <div class="vh-ats-name">Lever</div>
-        <div class="vh-ats-event">candidateCreated webhook</div>
-      </div>
-      <div class="vh-ats-status" title="Active"></div>
-    </div>
-    <div class="vh-ats-body">
-      <div class="vh-ats-webhook">POST /ats/lever/webhook</div>
-    </div>
-  </div>
-  <div class="vh-ats-card">
-    <div class="vh-ats-head">
-      <div class="vh-ats-logo">🎋</div>
-      <div class="vh-ats-info">
-        <div class="vh-ats-name">BambooHR</div>
-        <div class="vh-ats-event">employee.hired webhook</div>
-      </div>
-      <div class="vh-ats-status" title="Active"></div>
-    </div>
-    <div class="vh-ats-body">
-      <div class="vh-ats-webhook">POST /ats/bamboohr/webhook</div>
-    </div>
-  </div>
 </div>
 """
 
@@ -1692,19 +1691,26 @@ if score_btn:
                         f'padding:10px 12px;font-size:.78rem;color:var(--muted);line-height:1.6">'
                         f'<span style="font-size:.7rem;color:var(--primary);font-weight:600;'
                         f'display:block;margin-bottom:4px">\U0001f4e8 Generated LinkedIn Message</span>'
-                        f'{s_li}</div>'
+                        f'{html.escape(s_li)}</div>'
                     )
 
+                _circumference = 213.6
+                _ring_offset = round(_circumference - (s_adapt / 100) * _circumference, 1)
                 scorer_result_ph.markdown(
                     f'<div class="vh-scorer-result">'
-                    f'<div style="display:flex;align-items:center;gap:16px;margin-bottom:14px">'
-                    f'<div style="font-size:2.8rem;font-weight:900;color:{s_adapt_color}">{s_adapt}'
-                    f'<span style="font-size:1rem;color:var(--muted)">/100</span></div>'
-                    f'<div>'
-                    f'<div style="font-size:1rem;font-weight:700;color:var(--text)">{cname}</div>'
-                    f'<div style="font-size:.8rem;color:var(--muted)">Adaptability: {s_tier}</div>'
-                    f'<div style="font-size:.82rem;font-weight:600;color:{_TIER_COLOURS.get(s_outreach, "#94a3b8")};margin-top:4px">'
-                    f'{action}</div>'
+                    f'<div class="vh-score-ring-wrap">'
+                    f'<svg width="80" height="80" viewBox="0 0 80 80" style="flex-shrink:0">'
+                    f'<circle cx="40" cy="40" r="34" fill="none" stroke="#1e1e3a" stroke-width="8"/>'
+                    f'<circle cx="40" cy="40" r="34" fill="none" stroke="{s_adapt_color}" '
+                    f'stroke-width="8" stroke-linecap="round" stroke-dasharray="{_circumference}" '
+                    f'stroke-dashoffset="{_ring_offset}" transform="rotate(-90 40 40)"/>'
+                    f'<text x="40" y="45" text-anchor="middle" font-size="18" font-weight="900" '
+                    f'fill="{s_adapt_color}">{s_adapt}</text>'
+                    f'</svg>'
+                    f'<div class="vh-score-ring-info">'
+                    f'<div class="name" style="color:var(--text)">{html.escape(cname)}</div>'
+                    f'<div class="tier">Adaptability: {html.escape(s_tier)}</div>'
+                    f'<div class="action" style="color:{_TIER_COLOURS.get(s_outreach, "#94a3b8")}">{action}</div>'
                     f'</div></div>'
                     f'{dim_rows}'
                     f'<div style="margin-top:12px">{_tier_badge(s_outreach)}'
@@ -1720,6 +1726,146 @@ if score_btn:
 
 # -- ATS integrations ---------------------------------------------------------
 st.markdown(_ATS_HTML, unsafe_allow_html=True)
+
+# ATS provider definitions
+_ATS_PROVIDERS = [
+    {
+        "key": "greenhouse",
+        "logo": "🌿",
+        "name": "Greenhouse",
+        "event": "candidate.created webhook",
+        "webhook": "POST /ats/greenhouse/webhook",
+        "color": "#3db639",
+    },
+    {
+        "key": "lever",
+        "logo": "⚙️",
+        "name": "Lever",
+        "event": "candidateCreated webhook",
+        "webhook": "POST /ats/lever/webhook",
+        "color": "#006dff",
+    },
+    {
+        "key": "bamboohr",
+        "logo": "🎋",
+        "name": "BambooHR",
+        "event": "employee.hired webhook",
+        "webhook": "POST /ats/bamboohr/webhook",
+        "color": "#74a318",
+    },
+]
+
+# Build a label lookup from _ATS_PROVIDERS to avoid duplication
+_ATS_PROVIDER_LABELS = {p["key"]: f'{p["logo"]} {p["name"]}' for p in _ATS_PROVIDERS}
+
+if "ats_log" not in st.session_state:
+    st.session_state["ats_log"] = []
+
+# Render ATS cards in columns
+ats_cols = st.columns(len(_ATS_PROVIDERS))
+for col, provider in zip(ats_cols, _ATS_PROVIDERS):
+    with col:
+        # Card header
+        st.markdown(
+            f'<div class="vh-ats-card">'
+            f'<div class="vh-ats-head">'
+            f'<div class="vh-ats-logo">{provider["logo"]}</div>'
+            f'<div class="vh-ats-info">'
+            f'<div class="vh-ats-name">{provider["name"]}</div>'
+            f'<div class="vh-ats-event">{provider["event"]}</div>'
+            f'</div>'
+            f'<div class="vh-ats-status" title="Active"></div>'
+            f'</div>'
+            f'<div class="vh-ats-body">'
+            f'<div class="vh-ats-webhook">{provider["webhook"]}</div>'
+            f'</div></div>',
+            unsafe_allow_html=True,
+        )
+        btn_key = f"ats_test_{provider['key']}"
+        last_result_key = f"ats_result_{provider['key']}"
+        last_result = st.session_state.get(last_result_key)
+        btn_label = f"✅ {provider['name']} — run again" if last_result else f"{provider['logo']} Test {provider['name']} Webhook"
+        if st.button(btn_label, key=btn_key, use_container_width=True):
+            with st.spinner(f"⏳ Running Agent 1 for {provider['name']}…"):
+                try:
+                    mock = _get_mock_payload(provider["key"])
+                    normalised = _ats_normalise(provider["key"], mock) if mock else None
+                    if normalised:
+                        profile_text = normalised["profile_text"]
+                        candidate_name = normalised["candidate_name"]
+                        job_title = normalised.get("job_title", "Unknown Role")
+                        result = analyze_profile(profile_text)
+                        sc = int(result.get("adaptability_score") or 0)
+                        tier = result.get("tier") or "Standard"
+                        recommend = result.get("recommend_interview", False)
+                        action_str = (
+                            "🚀 Fast-track to interview" if sc >= 85 else
+                            "✅ Add to interview pipeline" if recommend else
+                            "📋 Add to nurture pipeline"
+                        )
+                        res_data = {
+                            "provider": provider["key"],
+                            "provider_color": provider["color"],
+                            "candidate_name": candidate_name,
+                            "job_title": job_title,
+                            "adaptability_score": sc,
+                            "tier": tier,
+                            "action": action_str,
+                        }
+                        st.session_state[last_result_key] = res_data
+                        st.session_state["ats_log"].insert(0, res_data)
+                        st.rerun()
+                    else:
+                        st.error("ATS normalisation failed — module unavailable")
+                except Exception as exc:
+                    st.error(f"⚠️ Error: {exc}")
+        if last_result:
+            sc = last_result["adaptability_score"]
+            sc_color = "#22c55e" if sc >= 70 else "#f59e0b" if sc >= 55 else "#94a3b8"
+            st.markdown(
+                f'<div class="vh-ats-result" style="border-left:3px solid {last_result["provider_color"]}">'
+                f'<div style="font-weight:700;margin-bottom:6px">'
+                f'{html.escape(last_result["candidate_name"])}'
+                f'<span style="font-size:.7rem;color:var(--muted);margin-left:6px">{html.escape(last_result["job_title"])}</span>'
+                f'</div>'
+                f'<div style="display:flex;gap:16px;margin-bottom:6px">'
+                f'<span>Adaptability: <strong style="color:{sc_color}">{sc}/100</strong></span>'
+                f'<span>Tier: <strong style="color:{sc_color}">{html.escape(last_result["tier"])}</strong></span>'
+                f'</div>'
+                f'<div style="color:#22c55e;font-size:.75rem">{last_result["action"]}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+# ATS Event Log
+if st.session_state.get("ats_log"):
+    header_row = (
+        '<div class="vh-ats-log-row vh-ats-log-header">'
+        '<span>Provider</span><span>Candidate</span>'
+        '<span>Adaptability</span><span>Tier</span><span>Action</span>'
+        '</div>'
+    )
+    log_rows = ""
+    for entry in st.session_state["ats_log"]:
+        sc = entry["adaptability_score"]
+        sc_color = "#22c55e" if sc >= 70 else "#f59e0b" if sc >= 55 else "#94a3b8"
+        prov_label = _ATS_PROVIDER_LABELS.get(entry["provider"], entry["provider"])
+        log_rows += (
+            f'<div class="vh-ats-log-row">'
+            f'<span style="color:{entry["provider_color"]}">{prov_label}</span>'
+            f'<span style="font-weight:600">{html.escape(entry["candidate_name"])}</span>'
+            f'<span style="color:{sc_color};font-weight:700">{sc}/100</span>'
+            f'<span style="color:{sc_color}">{html.escape(entry["tier"])}</span>'
+            f'<span style="color:#22c55e;font-size:.72rem">{entry["action"]}</span>'
+            f'</div>'
+        )
+    st.markdown(
+        f'<div class="vh-ats-log-wrap">'
+        f'<div class="vh-ats-log-head">📋 ATS Event Log</div>'
+        f'{header_row}{log_rows}'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
 # -- Footer -------------------------------------------------------------------
 st.markdown(_FOOTER_HTML, unsafe_allow_html=True)
