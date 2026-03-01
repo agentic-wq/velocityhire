@@ -8,7 +8,9 @@ VelocityHire identifies candidates with the highest **learning velocity** — no
 Three LangGraph agents collaborate to score adaptability, match candidates to roles, and generate
 personalised outreach campaigns automatically.
 
-**Live Demo →** https://q1inyxqs.run.complete.dev
+**Live Demo (Cloud Run) →** https://q1inyxqs.run.complete.dev
+
+**Live Demo (Streamlit) →** *(deploy via [Streamlit Community Cloud](https://share.streamlit.io) — see [Streamlit Deployment](#streamlit-community-cloud-deployment) below)*
 
 ---
 
@@ -400,6 +402,47 @@ condition.  Follow these steps:
    You should see a binding for
    `principalSet://iam.googleapis.com/…/attribute.repository/agentic-wq/velocityhire`
    with role `roles/iam.workloadIdentityUser`.
+
+---
+
+## Streamlit Community Cloud Deployment
+
+A Streamlit version of the live demo is available as a backup/secondary hosting
+option.  The entry point is [`streamlit_app.py`](./streamlit_app.py) at the
+repository root.
+
+### Deploying to Streamlit Community Cloud
+
+1. **Go to [share.streamlit.io](https://share.streamlit.io)** and sign in with
+   your GitHub account.
+
+2. Click **"New app"** and fill in:
+   | Field | Value |
+   |-------|-------|
+   | Repository | `agentic-wq/velocityhire` |
+   | Branch | `master` |
+   | Main file path | `streamlit_app.py` |
+
+3. Click **"Deploy"** — Streamlit Community Cloud will install dependencies from
+   the root `requirements.txt` and start the app automatically.
+
+4. *(Optional)* Add secrets under **App settings → Secrets** if you want to
+   enable live LLM mode:
+   ```toml
+   MOCK_MODE = "false"
+   CLIENT_ID  = "your-deploy-ai-client-id"
+   CLIENT_SECRET = "your-deploy-ai-secret"
+   ORG_ID     = "your-org-id"
+   ```
+   Without secrets the app defaults to `MOCK_MODE=true` — fully functional
+   deterministic demo with no external API calls.
+
+### Running the Streamlit demo locally
+
+```bash
+pip install -r requirements.txt
+streamlit run streamlit_app.py
+```
 
 ---
 
