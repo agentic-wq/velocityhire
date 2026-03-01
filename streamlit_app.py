@@ -10,6 +10,7 @@ Run locally:
 
 import os
 import sys
+import time
 import concurrent.futures
 from pathlib import Path
 from typing import List, Dict, Any
@@ -646,6 +647,7 @@ _TRAD_DATA = {
 }
 
 _AGENT_TIMEOUT_SECS = 30
+_STAGE_ANIM_DELAY_SECS = 0.35  # pause per stage so animation is visible in mock mode
 
 # -- Colour helpers -----------------------------------------------------------
 _TIER_COLOURS = {
@@ -770,6 +772,9 @@ def run_pipeline(grid_placeholder, progress_bar, status_text) -> List[Dict[str, 
     total = len(DEMO_CANDIDATES)
     states = [{"stage": "waiting"} for _ in DEMO_CANDIDATES]
 
+    # Ensure waiting state is visible before processing starts (important on re-runs)
+    grid_placeholder.markdown(_render_candidate_grid(states), unsafe_allow_html=True)
+
     for idx, cand in enumerate(DEMO_CANDIDATES):
         name = cand["name"]
         profile = cand["profile"]
@@ -782,6 +787,7 @@ def run_pipeline(grid_placeholder, progress_bar, status_text) -> List[Dict[str, 
             f"**{cand['emoji']} {name}** — \U0001f52c Agent 1: Analysing adaptability…</span>",
             unsafe_allow_html=True,
         )
+        time.sleep(_STAGE_ANIM_DELAY_SECS)
         try:
             a1 = _call_with_timeout(analyze_profile, _AGENT_TIMEOUT_SECS, profile)
         except concurrent.futures.TimeoutError:
@@ -799,6 +805,7 @@ def run_pipeline(grid_placeholder, progress_bar, status_text) -> List[Dict[str, 
             f"**{cand['emoji']} {name}** — \U0001f3af Agent 2: Matching to job…</span>",
             unsafe_allow_html=True,
         )
+        time.sleep(_STAGE_ANIM_DELAY_SECS)
         try:
             a2 = _call_with_timeout(
                 match_candidate, _AGENT_TIMEOUT_SECS,
@@ -833,6 +840,7 @@ def run_pipeline(grid_placeholder, progress_bar, status_text) -> List[Dict[str, 
             f"**{cand['emoji']} {name}** — \u2709\ufe0f Agent 3: Generating outreach…</span>",
             unsafe_allow_html=True,
         )
+        time.sleep(_STAGE_ANIM_DELAY_SECS)
         try:
             a3 = _call_with_timeout(
                 generate_outreach, _AGENT_TIMEOUT_SECS,
@@ -1353,6 +1361,14 @@ if run_clicked:
 if "results" not in st.session_state and run_clicked:
     progress_bar = st.progress(0)
     status_text = st.empty()
+    # Scroll to the candidate grid so the per-stage animation is visible
+    st.html(
+        "<script>setTimeout(function(){"
+        "var el=document.querySelector('.vh-candidates-grid');"
+        "if(el)el.scrollIntoView({behavior:'smooth',block:'start'});"
+        "},100);</script>",
+        unsafe_allow_javascript=True,
+    )
     with st.spinner("Running LangGraph pipeline…"):
         st.session_state["results"] = run_pipeline(grid_placeholder, progress_bar, status_text)
     status_text.empty()
