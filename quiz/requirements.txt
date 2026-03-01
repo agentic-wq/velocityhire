@@ -1,0 +1,3 @@
+# Quiz — Streamlit Community Cloud dependencies
+# Only streamlit is needed; the quiz app has no other external imports.
+streamlit>=1.35.0
