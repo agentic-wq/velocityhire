@@ -1404,11 +1404,8 @@ def render_quiz(quiz_id: str):
     tab_cols = st.columns(len(sections))
     for si, sname in enumerate(sections):
         with tab_cols[si]:
-            # Determine status colour
             qs_in_sec = [(i, qx) for i, qx in enumerate(questions) if qx["s"] == si]
             all_done = all(answered[i] for i, _ in qs_in_sec)
-            is_current = q["s"] == si
-            btn_style = f"color:{accent}; font-weight:700;" if is_current else ""
             label = f"S{si + 1}" + (" ✓" if all_done else "")
             if st.button(label, key=f"{quiz_id}_tab_{si}", help=sname):
                 first_idx = next((i for i, qx in enumerate(questions) if qx["s"] == si), current)
