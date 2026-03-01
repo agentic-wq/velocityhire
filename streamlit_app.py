@@ -21,6 +21,9 @@ for _sub in ("agent1", "agent2", "agent3"):
     _p = str(ROOT / _sub)
     if _p not in sys.path:
         sys.path.insert(0, _p)
+_root_str = str(ROOT)
+if _root_str not in sys.path:
+    sys.path.insert(0, _root_str)
 
 import streamlit as st  # noqa: E402
 
